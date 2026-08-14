@@ -306,3 +306,22 @@ def test_徽章數字模板涵蓋_0_到_9():
     digits = R.load_digits()
     assert set(digits) == set(range(10)), f"缺 {sorted(set(range(10)) - set(digits))}"
     assert "/" in P.load_templates(), "進度條要拼出 N/M 需要斜線模板"
+
+
+def test_進度條裡的_0_讀得出來():
+    """0 是最晚才補齊的模板，而且原本 22 張截圖的進度條裡一個 0 都沒有 ——
+    分子是 14/8/9/2/1/17/12/7/6/5，分母是 19/13/11/17。
+
+    IMG_ZERO 是唯一含 0 的一張（新玩家，三個系列都是 0），
+    同時也是第三種解析度。少了它，0 這個模板等於從沒被驗證過。
+    """
+    got = P.read_progress(_img("IMG_ZERO"))
+    assert got == {"elixir": (1, 19), "dark": (0, 13), "builder": (0, 11), "super": (0, 17)}
+
+
+def test_三種解析度都涵蓋到():
+    """測資如果哪天全換成同一台裝置拍的，跨裝置的測試就變成擺設。"""
+    ratios = sorted(round(_img(n).shape[1] / _img(n).shape[0], 2)
+                    for n in ("IMG_4926", "IMG_4943", "IMG_ZERO"))
+    assert len(set(ratios)) == 3, f"長寬比重複了：{ratios}"
+    assert max(ratios) - min(ratios) > 0.6, f"三者太接近：{ratios}"

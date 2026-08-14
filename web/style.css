@@ -172,14 +172,22 @@ code {
 .tag.offclan { color: var(--warn); border-color: var(--warn); }
 
 .swap { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.swap .lbl { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
-.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.swap .lbl { font-size: 12px; color: var(--dim); margin-bottom: 6px; }
+.swap .lbl b { color: var(--text); font-size: 13px; }
+
+.pairing { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+.pairing .arrow { color: var(--accent); font-size: 14px; }
+
 .chip {
   font-size: 12px; padding: 3px 8px; border-radius: 6px;
   background: var(--panel-2); border: 1px solid var(--line);
 }
 .chip.give { border-color: #6a4a2a; }
 .chip.get { border-color: #2a5a44; }
+.chip.faded { opacity: .62; }
+
+.alt { margin-top: 6px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.alt-label { font-size: 11px; color: var(--dim); }
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }

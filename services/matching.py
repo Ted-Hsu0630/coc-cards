@@ -31,8 +31,9 @@ _KIND_RANK = {MUTUAL: 0, INCOMING: 1, OUTGOING: 2}
 class SeriesMatch:
     series: str
     kind: str
-    i_give: list[str] = field(default_factory=list)  # 我送出的候選卡
+    i_give: list[str] = field(default_factory=list)  # 我送出的候選卡（優先順序由前到後）
     i_get: list[str] = field(default_factory=list)   # 我收到的候選卡
+    trades: int = 0                                  # 這個系列實際最多能換幾次
 
     def as_dict(self) -> dict:
         return {
@@ -40,6 +41,7 @@ class SeriesMatch:
             "kind": self.kind,
             "i_give": self.i_give,
             "i_get": self.i_get,
+            "trades": self.trades,
         }
 
 
@@ -66,6 +68,7 @@ class Match:
             "initiator": INITIATOR[self.kind],
             "gain": self.gain,
             "help": self.help,
+            "trades": sum(s.trades for s in self.series),
             "series": [s.as_dict() for s in self.series],
         }
 
@@ -79,6 +82,32 @@ def _missing(counts: dict[str, int], card_id: str) -> bool:
     return counts.get(card_id, 0) == 0
 
 
+def _spare_copies(counts: dict[str, int], ids: list[str]) -> int:
+    """這個系列裡總共有幾「張」可以送出（同一張持有 3 張就是 2 張可送）。
+
+    跟「有幾種可以送」不同：單向交換時每換一次就實際消耗一張卡，
+    所以次數上限要看張數，不是看種類數。
+    """
+    return sum(max(0, counts.get(c, 0) - 1) for c in ids)
+
+
+def _by_count_desc(ids: list[str], counts: dict[str, int]) -> list[str]:
+    """張數多的排前面 —— 送出手上最多的那張最不心疼。"""
+    return sorted(ids, key=lambda c: (-counts.get(c, 0), c))
+
+
+def _expand_spares(ids: list[str], counts: dict[str, int]) -> list[str]:
+    """把可送出的卡按「張數」展開，同一張有 3 張就出現 2 次。
+
+    單向交換時次數是用張數算的，但候選清單如果只列種類，
+    介面配對到第二次就會找不到對應的卡（實際發生過：顯示成空白格）。
+    """
+    out: list[str] = []
+    for c in _by_count_desc(ids, counts):
+        out.extend([c] * max(0, counts.get(c, 0) - 1))
+    return out
+
+
 def _series_match(
     series: str, ids: list[str], mine: dict[str, int], theirs: dict[str, int]
 ) -> SeriesMatch | None:
@@ -88,22 +117,45 @@ def _series_match(
     fills_me = [c for c in ids if _spare(theirs, c) and _missing(mine, c)]
 
     if fills_them and fills_me:
-        return SeriesMatch(series, MUTUAL, fills_them, fills_me)
+        # 交換是 1:1，而且同一張卡補一次空缺就夠了 —— 所以互利的次數上限
+        # 是兩邊候選數的較小者，不是候選數相加。
+        # （這條沒算對的話介面會叫人一次送出三張只換回一張，白白浪費卡。）
+        return SeriesMatch(
+            series,
+            MUTUAL,
+            _by_count_desc(fills_them, mine),
+            _by_count_desc(fills_me, theirs),
+            trades=min(len(fills_them), len(fills_me)),
+        )
 
     # 以下兩種是單向的。單向仍然要付出一張同系列的多餘卡當對價，
-    # 差別只在收下的一方本來就有那張卡。
+    # 差別只在收下的一方本來就有那張卡 —— 所以次數會被實際張數卡住。
     if fills_me:
         # 我當發起方：送出任何一張同系列的多餘卡，換我缺的
         my_spares = [c for c in ids if _spare(mine, c)]
         if my_spares:
-            return SeriesMatch(series, INCOMING, my_spares, fills_me)
+            # 送出的一側按張數展開：同一張卡有多份就能重複拿去換
+            return SeriesMatch(
+                series,
+                INCOMING,
+                _expand_spares(my_spares, mine),
+                _by_count_desc(fills_me, theirs),
+                trades=min(len(fills_me), _spare_copies(mine, ids)),
+            )
         return None
 
     if fills_them:
         # 對方當發起方：對方送出任何一張同系列的多餘卡，換他缺的
         their_spares = [c for c in ids if _spare(theirs, c)]
         if their_spares:
-            return SeriesMatch(series, OUTGOING, fills_them, their_spares)
+            # 這次是對方那側按張數展開
+            return SeriesMatch(
+                series,
+                OUTGOING,
+                _by_count_desc(fills_them, mine),
+                _expand_spares(their_spares, theirs),
+                trades=min(len(fills_them), _spare_copies(theirs, ids)),
+            )
         return None
 
     return None
@@ -129,8 +181,10 @@ def match_one(
     # 整體類型取最好的那一個：只要任一系列能互利，這個對象就是互利對象
     kind = min((r.kind for r in results), key=lambda k: _KIND_RANK[k])
 
-    gain = sum(len(r.i_get) for r in results if r.kind in (MUTUAL, INCOMING))
-    helped = sum(len(r.i_give) for r in results if r.kind in (MUTUAL, OUTGOING))
+    # 用「實際可換次數」加總，不是候選清單長度。候選清單有 3 個不代表能換 3 次 ——
+    # 那樣算會把「可補你 7 張」印在只能換 4 次的配對上。
+    gain = sum(r.trades for r in results if r.kind in (MUTUAL, INCOMING))
+    helped = sum(r.trades for r in results if r.kind in (MUTUAL, OUTGOING))
 
     results.sort(key=lambda r: (_KIND_RANK[r.kind], r.series))
     return kind, results, gain, helped

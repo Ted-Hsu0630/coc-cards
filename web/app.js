@@ -251,29 +251,48 @@ function renderMatch(m) {
 
   const sub = el("p", "hint");
   sub.textContent =
-    `${m.clan_name || "無部落"}　${INITIATOR_LABEL[m.initiator]}` +
-    (m.gain ? `　可補你 ${m.gain} 張` : "") +
-    (m.help ? `　可補對方 ${m.help} 張` : "");
+    `${m.clan_name || "無部落"}　${INITIATOR_LABEL[m.initiator]}　` +
+    `這一組最多換 ${m.trades} 次` +
+    (m.gain ? `（補你 ${m.gain} 張` : "（") +
+    (m.help ? `${m.gain ? "、" : ""}補對方 ${m.help} 張` : "") +
+    "）";
   card.append(sub);
 
-  for (const s of m.series) {
-    const box = el("div", "swap");
-    const meta = state.series.find((x) => x.key === s.series);
-    box.append(el("div", "lbl", `${meta ? meta.name_zh : s.series}　${KIND_LABEL[s.kind]}`));
-
-    box.append(chipRow("你送出", s.i_give, "give"));
-    box.append(chipRow("你收到", s.i_get, "get"));
-    card.append(box);
-  }
+  for (const s of m.series) card.append(renderSwap(s));
   return card;
 }
 
-function chipRow(label, ids, cls) {
-  const wrap = el("div");
-  wrap.append(el("div", "lbl", label));
-  const chips = el("div", "chips");
-  for (const id of ids) chips.append(el("span", `chip ${cls}`, cardName(id)));
-  wrap.append(chips);
+// 交換是一對一：從「送出」挑一張，換「收到」的一張。所以直接把可換的次數
+// 配成明確的成對顯示，其餘的列成備選 —— 排成兩排讓人自己配的話，
+// 很容易被讀成「這三張一起送出換那一張」而白白浪費卡。
+function renderSwap(s) {
+  const box = el("div", "swap");
+  const meta = state.series.find((x) => x.key === s.series);
+  const head = el("div", "lbl");
+  head.append(el("b", null, meta ? meta.name_zh : s.series));
+  head.append(document.createTextNode(`　${KIND_LABEL[s.kind]}　可換 ${s.trades} 次`));
+  box.append(head);
+
+  for (let i = 0; i < s.trades; i++) {
+    const row = el("div", "pairing");
+    row.append(el("span", "chip give", cardName(s.i_give[i])));
+    row.append(el("span", "arrow", "⇄"));
+    row.append(el("span", "chip get", cardName(s.i_get[i])));
+    box.append(row);
+  }
+
+  // 單向交換時清單是按張數展開的（同一張多份會重複），備選要去重才不會洗版
+  const restGive = [...new Set(s.i_give.slice(s.trades))];
+  const restGet = [...new Set(s.i_get.slice(s.trades))];
+  if (restGive.length) box.append(altRow("送出也可改用", restGive, "give"));
+  if (restGet.length) box.append(altRow("收到也可改挑", restGet, "get"));
+  return box;
+}
+
+function altRow(label, ids, cls) {
+  const wrap = el("div", "alt");
+  wrap.append(el("span", "alt-label", label + "："));
+  for (const id of ids) wrap.append(el("span", `chip ${cls} faded`, cardName(id)));
   return wrap;
 }
 

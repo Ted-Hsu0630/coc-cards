@@ -1,0 +1,172 @@
+:root {
+  --bg: #14161c;
+  --panel: #1e222c;
+  --panel-2: #262b38;
+  --line: #333a4a;
+  --text: #e8eaf0;
+  --dim: #9aa3b8;
+  --accent: #f0b429;
+  --ok: #3ec98a;
+  --warn: #f0803c;
+  --bad: #e4595b;
+
+  --elixir: #d94ac4;
+  --dark: #8b5cf6;
+  --builder: #3b9ae1;
+  --super: #f0803c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 -apple-system, "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+main { max-width: 900px; margin: 0 auto; padding: 12px; }
+
+/* --- 頂欄 --- */
+#topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding-top: env(safe-area-inset-top);
+}
+.bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  max-width: 900px; margin: 0 auto;
+}
+.brand { color: var(--accent); white-space: nowrap; }
+.bar select { flex: 1; min-width: 0; }
+.tabs {
+  display: flex; gap: 4px; overflow-x: auto;
+  padding: 0 8px 8px;
+  max-width: 900px; margin: 0 auto;
+}
+.tabs button {
+  flex: 1 0 auto;
+  background: transparent; color: var(--dim);
+  border: 0; border-bottom: 2px solid transparent;
+  padding: 8px 12px; font-size: 14px; cursor: pointer;
+  white-space: nowrap;
+}
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* --- 元件 --- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.card h1 { font-size: 20px; margin: 0 0 6px; }
+.card h2 { font-size: 16px; margin: 0 0 10px; }
+.intro p { color: var(--dim); margin: 0; }
+
+label { display: block; margin-bottom: 10px; font-size: 14px; color: var(--dim); }
+input, select {
+  width: 100%; margin-top: 4px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px; font-size: 16px; /* 16px 以下 iOS Safari 會自動放大 */
+}
+button {
+  border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text);
+  padding: 10px 14px; font-size: 15px; cursor: pointer;
+}
+button.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+button.primary:disabled { opacity: .5; cursor: default; }
+button.ghost { background: transparent; color: var(--dim); }
+
+.hint { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
+.error { color: var(--bad); font-size: 14px; margin: 10px 0 0; }
+.warn { color: var(--warn); font-size: 13px; }
+.howto { margin: 4px 0 12px; color: var(--dim); font-size: 14px; }
+.howto summary { cursor: pointer; color: var(--accent); }
+.howto ol { margin: 8px 0; padding-left: 20px; }
+
+.switch { display: flex; align-items: center; gap: 8px; color: var(--text); margin: 0; }
+.switch input { width: auto; margin: 0; }
+
+/* --- 收藏表 --- */
+.sticky-summary { position: sticky; top: 96px; z-index: 10; }
+.progress-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  flex: 1 1 auto; text-align: center;
+  border-radius: 8px; padding: 6px 8px;
+  font-size: 13px; font-weight: 600; color: #12141a;
+}
+.pill.total { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+.pill.elixir { background: var(--elixir); }
+.pill.dark { background: var(--dark); }
+.pill.builder { background: var(--builder); }
+.pill.super { background: var(--super); }
+
+.save-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.save-row .hint { margin: 0; }
+
+.series-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.slot {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+.slot.elixir { border-left-color: var(--elixir); }
+.slot.dark { border-left-color: var(--dark); }
+.slot.builder { border-left-color: var(--builder); }
+.slot.super { border-left-color: var(--super); }
+.slot.missing { background: #2a1f22; }
+.slot.spare { background: #1f2a24; }
+.slot .name { font-size: 12px; line-height: 1.3; height: 2.6em; overflow: hidden; margin-bottom: 6px; }
+.slot .name.unconfirmed::after { content: " ?"; color: var(--warn); }
+.slot select { padding: 6px; font-size: 15px; }
+
+/* --- 配對 --- */
+.match { border-left: 3px solid var(--line); }
+.match.mutual { border-left-color: var(--ok); }
+.match.incoming { border-left-color: var(--accent); }
+.match.outgoing { border-left-color: var(--dim); }
+.match-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.match-head .who { font-weight: 600; font-size: 16px; }
+.tag {
+  font-size: 11px; padding: 2px 7px; border-radius: 99px;
+  border: 1px solid var(--line); color: var(--dim);
+}
+.tag.mutual { background: var(--ok); color: #10231a; border-color: var(--ok); }
+.tag.incoming { background: var(--accent); color: #241d08; border-color: var(--accent); }
+.tag.offclan { color: var(--warn); border-color: var(--warn); }
+
+.swap { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.swap .lbl { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  font-size: 12px; padding: 3px 8px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.chip.give { border-color: #6a4a2a; }
+.chip.get { border-color: #2a5a44; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+th { color: var(--dim); font-weight: 500; font-size: 13px; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.empty { color: var(--dim); text-align: center; padding: 28px 12px; }
+
+.village-row { display: flex; align-items: center; gap: 10px; }
+.village-row .who { flex: 1; }

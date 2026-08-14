@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>卡牌衝突 換卡配對</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header id="topbar" hidden>
+  <div class="bar">
+    <strong class="brand">卡牌衝突</strong>
+    <select id="villagePicker" aria-label="選擇村莊"></select>
+    <button id="logoutBtn" class="ghost" type="button">登出</button>
+  </div>
+  <nav class="tabs">
+    <button data-view="collection" class="active" type="button">我的收藏</button>
+    <button data-view="matches" type="button">配對</button>
+    <button data-view="clan" type="button">部落總覽</button>
+    <button data-view="villages" type="button">村莊</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- 登入 -->
+  <section id="view-login" class="view">
+    <div class="card intro">
+      <h1>卡牌衝突 換卡配對</h1>
+      <p>登記自己缺什麼、多什麼，自動算出部落裡跟誰換、換哪張。</p>
+    </div>
+
+    <form id="loginForm" class="card">
+      <h2>驗證你的村莊</h2>
+      <label>村莊標籤
+        <input id="tagInput" name="tag" placeholder="#9QRUL2CVJ" autocapitalize="characters"
+               autocomplete="off" spellcheck="false" required>
+      </label>
+      <label>遊戲內 API 權杖
+        <input id="tokenInput" name="token" placeholder="8 碼權杖" autocomplete="off"
+               spellcheck="false" required>
+      </label>
+      <details class="howto">
+        <summary>權杖要去哪裡拿？</summary>
+        <ol>
+          <li>打開《部落衝突》</li>
+          <li>右下角 <b>設定</b></li>
+          <li><b>更多設定</b></li>
+          <li>最下面的 <b>API 權杖</b> → 複製</li>
+        </ol>
+        <p class="hint">權杖是一次性的，用完就失效，本站不會儲存。</p>
+      </details>
+      <button type="submit" class="primary">驗證並登入</button>
+      <p class="error" id="loginError" hidden></p>
+    </form>
+  </section>
+
+  <!-- 我的收藏 -->
+  <section id="view-collection" class="view" hidden>
+    <div class="card sticky-summary">
+      <div class="progress-row" id="seriesProgress"></div>
+      <div class="save-row">
+        <span id="saveState" class="hint">—</span>
+        <button id="saveBtn" class="primary" type="button">儲存</button>
+      </div>
+    </div>
+    <div id="collectionBody"></div>
+  </section>
+
+  <!-- 配對 -->
+  <section id="view-matches" class="view" hidden>
+    <div class="card">
+      <label class="switch">
+        <input type="checkbox" id="sameClanOnly" checked>
+        <span>只顯示同部落（不同部落換不了）</span>
+      </label>
+      <p class="hint" id="matchSummary">—</p>
+      <p class="warn" id="syncWarn" hidden>部落資訊同步失敗，以下顯示的是快取資料，可能已過時。</p>
+    </div>
+    <div id="matchBody"></div>
+  </section>
+
+  <!-- 部落總覽 -->
+  <section id="view-clan" class="view" hidden>
+    <div id="clanBody"></div>
+  </section>
+
+  <!-- 村莊管理 -->
+  <section id="view-villages" class="view" hidden>
+    <div id="villageList"></div>
+    <form id="addForm" class="card">
+      <h2>加綁另一個村莊</h2>
+      <p class="hint">小號要各自通過權杖驗證。綁定後可在上方切換，不用重新登入。</p>
+      <label>村莊標籤
+        <input id="addTag" placeholder="#XXXXXXX" autocapitalize="characters"
+               autocomplete="off" spellcheck="false" required>
+      </label>
+      <label>遊戲內 API 權杖
+        <input id="addToken" placeholder="8 碼權杖" autocomplete="off" spellcheck="false" required>
+      </label>
+      <button type="submit" class="primary">驗證並加綁</button>
+      <p class="error" id="addError" hidden></p>
+    </form>
+  </section>
+
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -95,10 +95,10 @@ button.ghost { background: transparent; color: var(--dim); }
 .steps li::marker { color: var(--accent); font-weight: 700; }
 .steps p { margin: 0 0 8px; color: var(--text); }
 .steps .hint { color: var(--dim); margin: 8px 0 0; }
-.steps a { display: block; max-width: 460px; }
 .steps img {
   display: block;
   width: 100%;
+  max-width: 460px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel-2);

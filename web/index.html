@@ -34,14 +34,14 @@
     <form id="loginForm" class="card">
       <h2>驗證你的村莊</h2>
       <label>村莊標籤
-        <input id="tagInput" name="tag" placeholder="#9QRUL2CVJ" autocapitalize="characters"
+        <input id="tagInput" name="tag" placeholder="#XXXXXXXXX" autocapitalize="characters"
                autocomplete="off" spellcheck="false" required>
       </label>
       <label>遊戲內 API 權杖
         <input id="tokenInput" name="token" placeholder="8 碼權杖" autocomplete="off"
                spellcheck="false" required>
       </label>
-      <details class="howto" data-guide open>
+      <details class="howto" data-guide>
         <summary>權杖要去哪裡拿？</summary>
       </details>
       <button type="submit" class="primary">驗證並登入</button>
@@ -86,7 +86,7 @@
       <h2>加綁另一個村莊</h2>
       <p class="hint">小號要各自通過權杖驗證。綁定後可在上方切換，不用重新登入。</p>
       <label>村莊標籤
-        <input id="addTag" placeholder="#XXXXXXX" autocapitalize="characters"
+        <input id="addTag" placeholder="#XXXXXXXXX" autocapitalize="characters"
                autocomplete="off" spellcheck="false" required>
       </label>
       <label>遊戲內 API 權杖
@@ -107,15 +107,11 @@
   <ol class="steps">
     <li>
       <p>打開《部落衝突》，點右下角的<b>齒輪</b>。</p>
-      <a href="/static/img/token-1-settings.jpg" target="_blank" rel="noopener">
-        <img src="/static/img/token-1-settings.jpg" alt="村莊畫面右下角的齒輪按鈕" loading="lazy">
-      </a>
+      <img src="/static/img/token-1-settings.jpg" alt="村莊畫面右下角的齒輪按鈕" loading="lazy">
     </li>
     <li>
       <p>拉到設定視窗最下面，點<b>更多設定</b>。</p>
-      <a href="/static/img/token-2-more.jpg" target="_blank" rel="noopener">
-        <img src="/static/img/token-2-more.jpg" alt="設定視窗底部的「更多設定」按鈕" loading="lazy">
-      </a>
+      <img src="/static/img/token-2-more.jpg" alt="設定視窗底部的「更多設定」按鈕" loading="lazy">
       <p class="hint">
         順帶一提，<b>村莊標籤</b>就在這個設定視窗最上方的 Supercell ID 那一列，
         <code>#</code> 開頭那串。
@@ -123,12 +119,9 @@
     </li>
     <li>
       <p>找到 <b>API Token</b> 區塊，點<b>顯示</b>，把出現的 8 碼複製起來。</p>
-      <a href="/static/img/token-3-show.jpg" target="_blank" rel="noopener">
-        <img src="/static/img/token-3-show.jpg" alt="更多設定裡 API Token 的「顯示」按鈕" loading="lazy">
-      </a>
+      <img src="/static/img/token-3-show.jpg" alt="更多設定裡 API Token 的「顯示」按鈕" loading="lazy">
     </li>
   </ol>
-  <p class="hint">圖片點一下可以放大看。</p>
   <p class="hint">
     本站只拿這組權杖<b>驗證一次</b>，不會儲存它。權杖在遊戲裡會定期更換，
     如果驗證失敗，回遊戲重新<b>顯示</b>一次拿最新的。

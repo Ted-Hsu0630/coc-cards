@@ -99,6 +99,28 @@ def set_active(
     return {"active_tag": tag}
 
 
+@router.post("/me/order")
+def set_order(
+    tags: list[str] = Body(embed=True),
+    conn: sqlite3.Connection = Depends(get_conn),
+    sess: dict = Depends(require_session),
+):
+    """重排村莊順序，上方的下拉選單跟著這個順序。"""
+    owned = {p["tag"] for p in players.players_of_user(conn, sess["user_id"])}
+    try:
+        wanted = [players.normalize_tag(t) for t in tags]
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+
+    # 必須「剛好」是自己持有的那一組：少一個會留下沒排到的村莊，
+    # 多一個或重複則會把別人的村莊寫進來
+    if len(wanted) != len(owned) or set(wanted) != owned:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "順序清單必須剛好包含你所有的村莊")
+
+    players.set_order(conn, sess["user_id"], wanted)
+    return {"players": [p["tag"] for p in players.players_of_user(conn, sess["user_id"])]}
+
+
 @router.delete("/players/{tag}")
 def unbind(
     tag: str,

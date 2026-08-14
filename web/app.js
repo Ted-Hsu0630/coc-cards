@@ -342,14 +342,31 @@ async function loadClan() {
 function renderVillages() {
   const list = $("#villageList");
   list.textContent = "";
-  for (const p of state.me.players) {
+  const many = state.me.players.length > 1;
+
+  if (many) {
+    const tip = el("div", "card");
+    tip.append(el("p", "hint", "用 ↑ ↓ 調整順序，上方切換村莊的選單會跟著這個順序。"));
+    list.append(tip);
+  }
+
+  state.me.players.forEach((p, i) => {
     const card = el("div", "card");
     const row = el("div", "village-row");
+
+    if (many) {
+      const arrows = el("div", "arrows");
+      arrows.append(moveBtn("↑", i, i - 1, i === 0));
+      arrows.append(moveBtn("↓", i, i + 1, i === state.me.players.length - 1));
+      row.append(arrows);
+    }
+
     const who = el("div", "who");
     who.append(el("div", null, `${p.name}　${p.tag}`));
     who.append(el("div", "hint", p.clan_name || "無部落"));
     row.append(who);
-    if (state.me.players.length > 1) {
+
+    if (many) {
       const btn = el("button", "ghost", "解除綁定");
       btn.addEventListener("click", async () => {
         if (!confirm(`解除綁定 ${p.name}？該村莊的收藏紀錄會一併刪除。`)) return;
@@ -361,7 +378,27 @@ function renderVillages() {
     }
     card.append(row);
     list.append(card);
-  }
+  });
+}
+
+function moveBtn(label, from, to, disabled) {
+  const b = el("button", "ghost move", label);
+  b.disabled = disabled;
+  b.addEventListener("click", async () => {
+    const order = state.me.players.map((p) => p.tag);
+    [order[from], order[to]] = [order[to], order[from]];
+    // 先鎖住避免連點造成順序競態，成功後重新載入讓下拉選單一起更新
+    for (const x of document.querySelectorAll(".move")) x.disabled = true;
+    try {
+      await api("/api/me/order", { method: "POST", body: JSON.stringify({ tags: order }) });
+      await boot();
+      show("villages");
+    } catch (e) {
+      alert(`調整順序失敗：${e.message}`);
+      renderVillages();
+    }
+  });
+  return b;
 }
 
 $("#addForm").addEventListener("submit", async (e) => {

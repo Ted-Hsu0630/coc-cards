@@ -198,3 +198,57 @@ def test_過期的_session_不能用來存取(client):
         )
     assert client.get("/api/me").json()["logged_in"] is False
     assert client.get("/api/collection").status_code == 401
+
+
+def order(client):
+    return [p["tag"] for p in client.get("/api/me").json()["players"]]
+
+
+def test_新綁的村莊排在最後(client):
+    login(client, "#AAA")
+    login(client, "#BBB")
+    login(client, "#CCC")
+    assert order(client) == ["#AAA", "#BBB", "#CCC"]
+
+
+def test_可以重新排序(client):
+    login(client, "#AAA")
+    login(client, "#BBB")
+    login(client, "#CCC")
+
+    r = client.post("/api/me/order", json={"tags": ["#CCC", "#AAA", "#BBB"]})
+    assert r.status_code == 200
+    assert order(client) == ["#CCC", "#AAA", "#BBB"]
+
+
+def test_重新驗證既有村莊不會打亂順序(client):
+    login(client, "#AAA")
+    login(client, "#BBB")
+    client.post("/api/me/order", json={"tags": ["#BBB", "#AAA"]})
+    login(client, "#AAA")                      # 重新驗證，不是新綁
+    assert order(client) == ["#BBB", "#AAA"]
+
+
+def test_排序後新綁的仍排最後(client):
+    login(client, "#AAA")
+    login(client, "#BBB")
+    client.post("/api/me/order", json={"tags": ["#BBB", "#AAA"]})
+    login(client, "#CCC")
+    assert order(client) == ["#BBB", "#AAA", "#CCC"]
+
+
+def test_順序清單缺漏或多出來都被拒(client):
+    login(client, "#AAA")
+    login(client, "#BBB")
+    for bad in (["#AAA"], ["#AAA", "#BBB", "#CCC"], ["#AAA", "#AAA"], ["#AAA", "#ZZZ"]):
+        r = client.post("/api/me/order", json={"tags": bad})
+        assert r.status_code == 400, bad
+    assert order(client) == ["#AAA", "#BBB"]   # 全都沒被動到
+
+
+def test_不能把別人的村莊排進來(client):
+    login(client, "#CCC")                      # 別人的帳號
+    client.cookies.clear()
+    login(client, "#AAA")
+    r = client.post("/api/me/order", json={"tags": ["#AAA", "#CCC"]})
+    assert r.status_code == 400

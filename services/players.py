@@ -29,10 +29,30 @@ def get_player(conn, tag: str) -> dict | None:
 
 
 def players_of_user(conn, user_id: int) -> list[dict]:
+    # sort_order 是使用者自訂的順序；同值時用 verified_at 當穩定的次要鍵
     rows = conn.execute(
-        "SELECT * FROM players WHERE user_id = ? ORDER BY verified_at", (user_id,)
+        "SELECT * FROM players WHERE user_id = ? ORDER BY sort_order, verified_at", (user_id,)
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _next_sort_order(conn, user_id: int) -> int:
+    row = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM players WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return int(row["n"])
+
+
+def set_order(conn, user_id: int, ordered_tags: list[str]) -> None:
+    """依給定順序重排這個帳號的村莊。
+
+    呼叫端必須先確認 ordered_tags 剛好等於這個帳號持有的村莊集合，
+    否則會把別人的村莊或不存在的標籤寫進來。
+    """
+    for i, tag in enumerate(ordered_tags):
+        conn.execute(
+            "UPDATE players SET sort_order = ? WHERE tag = ? AND user_id = ?", (i, tag, user_id)
+        )
 
 
 def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
@@ -46,8 +66,8 @@ def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
     conn.execute(
         """
         INSERT INTO players (tag, user_id, name, clan_tag, clan_name,
-                             clan_synced_at, verified_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                             clan_synced_at, verified_at, updated_at, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tag) DO UPDATE SET
             name = excluded.name,
             clan_tag = excluded.clan_tag,
@@ -56,7 +76,19 @@ def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
             verified_at = excluded.verified_at,
             updated_at = excluded.updated_at
         """,
-        (tag, user_id, info["name"], info["clan_tag"], info["clan_name"], ts, ts, ts),
+        # 新綁的村莊排在最後面。ON CONFLICT 刻意不更新 sort_order ——
+        # 重新驗證既有村莊時不該把使用者調好的順序打亂。
+        (
+            tag,
+            user_id,
+            info["name"],
+            info["clan_tag"],
+            info["clan_name"],
+            ts,
+            ts,
+            ts,
+            _next_sort_order(conn, user_id),
+        ),
     )
 
 

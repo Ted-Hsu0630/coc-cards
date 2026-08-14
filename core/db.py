@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS players (
   clan_name       TEXT,
   clan_synced_at  TEXT,
   verified_at     TEXT NOT NULL,
-  updated_at      TEXT NOT NULL
+  updated_at      TEXT NOT NULL,
+  sort_order      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
 CREATE INDEX IF NOT EXISTS idx_players_clan ON players(clan_tag);
@@ -74,6 +75,27 @@ def session() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """既有資料庫的欄位補丁。
+
+    `CREATE TABLE IF NOT EXISTS` 對已存在的表完全不作用，所以新增欄位一定要走
+    ALTER TABLE，否則正式環境會停在舊 schema 上而本機看起來一切正常。
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(players)")}
+    if "sort_order" not in cols:
+        conn.execute("ALTER TABLE players ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        # 依原本的 verified_at 順序回填，讓現有使用者看到的排列不會突然改變
+        rows = conn.execute(
+            "SELECT tag, user_id FROM players ORDER BY user_id, verified_at"
+        ).fetchall()
+        seen: dict[int, int] = {}
+        for r in rows:
+            n = seen.get(r["user_id"], 0)
+            conn.execute("UPDATE players SET sort_order = ? WHERE tag = ?", (n, r["tag"]))
+            seen[r["user_id"]] = n + 1
+
+
 def init() -> None:
     with session() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)

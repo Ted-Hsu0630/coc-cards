@@ -1,0 +1,5 @@
+# 截圖辨識用。跟 requirements.txt 分開只是為了 Docker 層快取 ——
+# 這一層有 opencv，映像檔會大約多 40 MB，但幾乎不會變動。
+# 版本固定成本機實測過的那組（tools/FINDINGS.md 的數字都是用它跑出來的）。
+opencv-python-headless==5.0.0.93
+numpy==2.5.2

@@ -10,3 +10,4 @@ tests/
 data/*.db
 data/*.db-*
 SPEC.md
+tools/

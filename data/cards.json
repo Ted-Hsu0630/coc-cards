@@ -3,7 +3,8 @@
   "_order_rules": [
     "聖水／闇黑／建築大師基地：相簿順序＝兵營解鎖順序。已用 Thrower=兵營18、Meteor Golem=兵營19、Ruin Witch=闇黑兵營13、Sneaky Archer=建築兵營2、Bomber=5、Night Witch=8、Power P.E.K.K.A=10、Hog Glider=11 交叉驗證。",
     "建築大師基地只有 11 張：Electrofire Wizard 不是建築兵營兵種，正確地不在名單內。",
-    "超級部隊：照本體兵種的順序排，先 11 個聖水系再 6 個闇黑系（11+6=17）。不是照大本營等級排。"
+    "超級部隊：照本體兵種的順序排，先 11 個聖水系再 6 個闇黑系（11+6=17）。不是照大本營等級排。",
+    "遊戲裡家鄉與建築大師基地的飛龍寶寶同名，這裡刻意在夜世界那張加上（夜）以便在部落聊天室講清楚是哪一張。"
   ],
   "series": [
     { "key": "elixir",  "name_zh": "聖水",         "count": 19, "border": "magenta" },
@@ -51,7 +52,7 @@
     { "id": "builder-03", "name_zh": "巨人拳擊手", "name_en": "Boxer Giant",     "confirmed": true },
     { "id": "builder-04", "name_zh": "變異亡靈",   "name_en": "Beta Minion",     "confirmed": true },
     { "id": "builder-05", "name_zh": "炸彈兵",     "name_en": "Bomber",          "confirmed": true },
-    { "id": "builder-06", "name_zh": "飛龍寶寶",   "name_en": "Baby Dragon",     "confirmed": true },
+    { "id": "builder-06", "name_zh": "飛龍寶寶（夜）", "name_en": "Baby Dragon", "confirmed": true },
     { "id": "builder-07", "name_zh": "加農炮戰車", "name_en": "Cannon Cart",     "confirmed": true },
     { "id": "builder-08", "name_zh": "暗夜女巫",   "name_en": "Night Witch",     "confirmed": true },
     { "id": "builder-09", "name_zh": "骷髏氣球",   "name_en": "Drop Ship",       "confirmed": true },

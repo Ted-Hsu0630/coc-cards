@@ -498,15 +498,26 @@ def load_art() -> dict[str, np.ndarray]:
     return out
 
 
-def art_score(img, boxes, start, art, ids):
-    """這批格子當成從 start 開始時，卡面跟模板有多像。"""
+def art_score(img, cells, start, art, ids):
+    """這批格子當成從 start 開始時，卡面跟模板有多像。
+
+    **被畫面切到的格子要跳過。** art_patch 是照可視框推算裁切範圍的，
+    格子被切掉時那個範圍根本不是卡面，比出來是雜訊。雜訊對每個候選視窗
+    都差不多，所以不會指錯答案，但會把差距稀釋掉 —— 實測 IMG_ZERO
+    （下緣 6 格被切）跳過之後差距從 0.270 回到 0.280，是唯一有差的一張。
+
+    整批都被切時退回全部算：稀釋過的分數還是比沒有分數好。
+    要不要跳只看 cells，跟 start 無關 —— 不然不同候選會用不同的格子集合，
+    分數就不能互相比了。
+    """
+    usable = [(i, c) for i, c in enumerate(cells) if not c.clip] or list(enumerate(cells))
     total, n = 0.0, 0
-    for i, box in enumerate(boxes):
+    for i, c in usable:
         card = ids[start + i] if start + i < len(ids) else None
         tmpl = art.get(card) if card else None
         if tmpl is None:
             continue
-        patch = art_patch(img, box)
+        patch = art_patch(img, c.box)
         if patch is None:
             continue
         f = patch.astype(np.float32)
@@ -634,6 +645,6 @@ def resolve_batch(results, images=None, art=None):
         elif art and images is not None:
             ids = album_ids()
             pool = free or r.tied
-            r.start = max(pool, key=lambda k: art_score(images[i], [c.box for c in r.cells], k, art, ids))
+            r.start = max(pool, key=lambda k: art_score(images[i], r.cells, k, art, ids))
         taken.update(range(r.start, r.start + len(r.cells)))
     return results

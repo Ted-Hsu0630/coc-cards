@@ -325,3 +325,47 @@ def test_三種解析度都涵蓋到():
                     for n in ("IMG_4926", "IMG_4943", "IMG_ZERO"))
     assert len(set(ratios)) == 3, f"長寬比重複了：{ratios}"
     assert max(ratios) - min(ratios) > 0.6, f"三者太接近：{ratios}"
+
+
+# --- 8. 整片聖水的二選一：只有卡面比對能解 ------------------------------------
+#
+# 相簿第 1~12 張與第 7~18 張都是 12 張聖水，邊框顏色排列完全一樣。
+# 多張一起上傳時「視窗不重疊」就化解掉了，單張上傳只剩卡面比對可用。
+#
+# 卡面模板只從玩家 A 萃取（tools/extract_art.py），所以拿 A 的截圖測等於
+# 作弊。這裡只用其他玩家的 —— 不同帳號、不同收藏狀態、不同裝置。
+
+ART_INDEPENDENT = [n for n in ALBUM if GT[n]["player"] != "A" and GT[n]["start"] == 0]
+
+
+@pytest.mark.parametrize("name", ART_INDEPENDENT)
+def test_單張整片聖水靠卡面比對定位(name):
+    img = _img(name)
+    r = R.recognize(img, art={})
+    # 先確認這張真的有歧義。少了這句，哪天顏色排列變得唯一，
+    # 下面的斷言會在什麼都沒測到的情況下照樣綠燈。
+    assert r.tied == [0, 6], f"{name} 應該有兩個候選視窗，實際 {r.tied}"
+
+    art, ids = R.load_art(), R.album_ids()
+    scores = {k: R.art_score(img, r.cells, k, art, ids) for k in r.tied}
+    want = GT[name]["start"]
+    assert max(scores, key=scores.get) == want, f"卡面比對選了 #{max(scores, key=scores.get)}"
+
+    other = [v for k, v in scores.items() if k != want]
+    margin = scores[want] - max(other)
+    # 實測最小差距 0.280（IMG_ZERO，玩家幾乎沒收集所以整片灰階）。
+    # 門檻訂在 0.15 是為了讓「差距在縮小」提早被發現，不是等到選錯才知道。
+    assert margin > 0.15, f"{name} 兩個候選只差 {margin:.3f}，太接近了"
+
+
+def test_整批格子都被切時卡面比對不會失效():
+    """art_score 跳過被切的格子，但整批都被切時必須退回全部算 ——
+    不然每個候選都拿不到分數，比較就變成「挑第一個」而不是挑最像的。"""
+    img = _img("IMG_4943")
+    r = R.recognize(img, art={})
+    for c in r.cells:
+        c.clip = "bottom"
+    art, ids = R.load_art(), R.album_ids()
+    scores = {k: R.art_score(img, r.cells, k, art, ids) for k in r.tied}
+    assert min(scores.values()) > -1.0, "整批被切就算不出分數，等於沒有裁判"
+    assert max(scores, key=scores.get) == GT["IMG_4943"]["start"]

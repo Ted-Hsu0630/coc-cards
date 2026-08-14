@@ -33,6 +33,21 @@ const cardName = (id) => {
   return c ? c.name_zh || c.name_en || id : id;
 };
 
+/* ---------- 取得權杖的圖解 ---------- */
+
+// 登入頁與「加綁小號」都要這份說明，內容一模一樣，所以放在 <template> 裡複製，
+// 不在 HTML 重複寫兩份（圖片 URL 相同，瀏覽器只會下載一次）。
+function mountGuides() {
+  const tpl = $("#tokenGuide");
+  if (!tpl) return;
+  for (const slot of document.querySelectorAll("[data-guide]")) {
+    if (slot.dataset.mounted) continue;
+    slot.append(tpl.content.cloneNode(true));
+    slot.dataset.mounted = "1";
+  }
+}
+mountGuides();
+
 /* ---------- 檢視切換 ---------- */
 
 function show(view) {

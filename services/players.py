@@ -39,11 +39,8 @@ def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
     """綁定或更新村莊。已綁在別的 user 底下時拒絕，不搶帳號。"""
     existing = conn.execute("SELECT user_id FROM players WHERE tag = ?", (tag,)).fetchone()
     if existing and existing["user_id"] != user_id:
-        # 只有「已登入 A 帳號、卻想加綁屬於 B 帳號的村莊」會走到這裡。
-        # 未登入的情況已經在 auth.verify_and_bind 被導向原本的帳號了。
-        raise TagAlreadyBound(
-            f"{tag} 已經綁在另一個帳號底下。請先登出，再直接用這個村莊的標籤登入。"
-        )
+        # 走到這裡代表 adopt_player 沒有處理掉，是防呆用的最後一道
+        raise TagAlreadyBound(f"{tag} 已經綁在另一個帳號底下")
 
     ts = db.now()
     conn.execute(
@@ -61,6 +58,38 @@ def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
         """,
         (tag, user_id, info["name"], info["clan_tag"], info["clan_name"], ts, ts, ts),
     )
+
+
+def adopt_player(conn, tag: str, target_user_id: int) -> bool:
+    """把已經綁在別的帳號底下的村莊搬到 target_user_id，回傳是否真的搬了。
+
+    使用情境（實際發生過）：成員先各自單獨登入兩隻帳號，各自建立了獨立帳號，
+    之後才發現有加綁小號的功能 —— 那時兩邊已經合不起來，只會一直看到「已被綁定」。
+
+    呼叫這裡之前權杖已經驗證過，所以擁有權沒有疑問。
+    只有在來源帳號**只剩這一個村莊**時才搬 —— 那樣搬完來源帳號就是空的，
+    可以直接刪掉，不會影響到任何其他村莊。收藏是以 tag 為鍵，搬家不會掉資料。
+    """
+    row = conn.execute("SELECT user_id FROM players WHERE tag = ?", (tag,)).fetchone()
+    if row is None or row["user_id"] == target_user_id:
+        return False
+
+    source_id = row["user_id"]
+    others = conn.execute(
+        "SELECT name FROM players WHERE user_id = ? AND tag != ?", (source_id, tag)
+    ).fetchall()
+    if others:
+        names = "、".join(r["name"] for r in others)
+        raise TagAlreadyBound(
+            f"{tag} 所屬的帳號底下還有其他村莊（{names}），不能只搬這一個。"
+            "請先登出，用那個帳號登入後解除綁定，再回來加綁。"
+        )
+
+    # 先搬村莊再刪來源帳號 —— 順序反過來的話 players 會被外鍵 CASCADE 一起刪掉。
+    # 刪掉來源帳號會連帶清掉它的 session，那是對的：這個村莊已經換人管了。
+    conn.execute("UPDATE players SET user_id = ? WHERE tag = ?", (target_user_id, tag))
+    conn.execute("DELETE FROM users WHERE id = ?", (source_id,))
+    return True
 
 
 def unbind_player(conn, tag: str, user_id: int) -> bool:

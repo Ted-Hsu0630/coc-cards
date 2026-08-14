@@ -52,7 +52,11 @@ async def verify(
     else:
         auth.set_active_tag(conn, sess["token"], result["tag"])
 
-    return {"player": result["player"], "active_tag": result["tag"]}
+    return {
+        "player": result["player"],
+        "active_tag": result["tag"],
+        "migrated": result["migrated"],
+    }
 
 
 @router.get("/me")

@@ -74,15 +74,20 @@ def test_清空_cookie_後用小號登入會回到同一個帳號(client):
     assert {p["tag"] for p in me["players"]} == {"#MAIN", "#ALT"}
 
 
-def test_搶別人的村莊會被擋且不留下孤兒帳號(client):
-    """409 之後 users 表不可以多出一列 —— 驗證相依的 rollback 真的有作用。"""
-    login(client, "#MAIN")
-    client.cookies.clear()
-    login(client, "#OTHER")  # 另一個人的帳號
+def test_被拒絕的加綁不留下孤兒帳號(client):
+    """409 之後 users 表不可以多出一列 —— 驗證相依的 rollback 真的有作用。
 
-    r = client.post("/api/players/verify", json={"tag": "#MAIN", "token": "goodtok"})
+    用「來源帳號有多個村莊」這個仍然會被拒的情境來測；
+    單一村莊的帳號現在會直接併過來（見 test_account_merge.py）。
+    """
+    login(client, "#BBB")
+    login(client, "#CCC")  # 這個帳號有兩個村莊
+    client.cookies.clear()
+    login(client, "#MAIN")
+
+    r = client.post("/api/players/verify", json={"tag": "#BBB", "token": "goodtok"})
     assert r.status_code == 409
-    assert "登出" in r.json()["detail"]
+    assert "解除綁定" in r.json()["detail"]
 
     import config
     from core import db

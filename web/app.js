@@ -369,12 +369,16 @@ $("#addForm").addEventListener("submit", async (e) => {
   const btn = e.target.querySelector("button");
   btn.disabled = true;
   try {
-    await api("/api/players/verify", {
+    const r = await api("/api/players/verify", {
       method: "POST",
       body: JSON.stringify({ tag: $("#addTag").value, token: $("#addToken").value }),
     });
     $("#addTag").value = "";
     $("#addToken").value = "";
+    if (r.migrated) {
+      // 這個村莊本來是獨立帳號，剛剛被併進來。收藏是照 tag 存的，所以原封不動。
+      alert(`已把「${r.player.name}」從原本的獨立帳號搬過來，收藏紀錄都還在。`);
+    }
     await boot();
     show("collection");
   } catch (e2) {

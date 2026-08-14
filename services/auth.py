@@ -77,6 +77,7 @@ async def verify_and_bind(conn, raw_tag: str, token: str, user_id: int | None) -
 
     info = await coc.get_player(tag)
 
+    migrated = False
     if user_id is None:
         # 未登入狀態下驗證成功。如果這個村莊已經綁過，就登入它原本所屬的帳號 ——
         # 權杖驗證通過本身就是所有權的證明，用哪一個村莊登入都該進到同一個帳號。
@@ -84,7 +85,11 @@ async def verify_and_bind(conn, raw_tag: str, token: str, user_id: int | None) -
         # 「已綁定在其他帳號」，但那其實是他自己的帳號，等於小號永遠登不進來。
         existing = players.get_player(conn, tag)
         user_id = existing["user_id"] if existing else _create_user(conn)
+    else:
+        # 已登入狀態下加綁。村莊若已屬於另一個「只有它一個」的帳號就直接搬過來，
+        # 讓先各自單獨登入的人事後還能合併。
+        migrated = players.adopt_player(conn, tag, user_id)
 
     players.upsert_player(conn, tag, user_id, info)
 
-    return {"user_id": user_id, "tag": tag, "player": info}
+    return {"user_id": user_id, "tag": tag, "player": info, "migrated": migrated}

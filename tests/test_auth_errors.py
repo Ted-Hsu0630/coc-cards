@@ -66,13 +66,18 @@ async def test_加綁小號掛在同一個帳號底下(conn, fake_coc):
     assert len(auth.players.players_of_user(conn, first["user_id"])) == 2
 
 
-async def test_別人已綁的村莊不會被搶走(conn, fake_coc):
+async def test_來源帳號有多個村莊時不可只搬走其中一個(conn, fake_coc):
+    """單一村莊的帳號可以整個併過來（見 test_account_merge.py），
+    但來源帳號還有別的村莊時就不行 —— 那會留下一個殘缺的帳號。"""
     from services.players import TagAlreadyBound
 
     fake_coc(verify_ok=True, player_exists=True)
-    owner = await auth.verify_and_bind(conn, "#9QRUL2CVJ", "tok", None)
-    with pytest.raises(TagAlreadyBound):
-        await auth.verify_and_bind(conn, "#9QRUL2CVJ", "tok", owner["user_id"] + 999)
+    other = await auth.verify_and_bind(conn, "#BBB", "tok", None)
+    await auth.verify_and_bind(conn, "#CCC", "tok", other["user_id"])
+    me = await auth.verify_and_bind(conn, "#AAA", "tok", None)
+
+    with pytest.raises(TagAlreadyBound, match="解除綁定"):
+        await auth.verify_and_bind(conn, "#BBB", "tok", me["user_id"])
 
 
 async def test_用已綁定的小號登入會進到同一個帳號(conn, fake_coc):

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支連續推送時，取消還在跑的舊 job。
+# 這個專案常常一次推好幾個 commit，沒有這段就會排隊跑一堆過期的結果。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # samples/ 是 45 MB 的截圖測資，抓完整歷史沒有意義
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          # 跟 Dockerfile 的 python:3.13-slim 對齊。
+          # 兩邊版本不一致的話，測試等於沒在正式環境的直譯器上跑過。
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            requirements-cv.txt
+
+      - name: 安裝相依
+        run: |
+          python -m pip install --upgrade pip
+          # requirements-dev.txt 內含 -r requirements.txt；
+          # requirements-cv.txt 是辨識用的 opencv
+          pip install -r requirements-dev.txt -r requirements-cv.txt
+
+      - name: 確認 opencv 真的裝起來了
+        # tests/test_recognition.py 開頭是 pytest.importorskip("cv2")，
+        # 所以 opencv 沒裝好時那 74 個測試會整組 skip，而 pytest 仍然回綠燈 ——
+        # 那是最糟的一種綠燈。在跑測試前先明確驗一次，裝壞就直接紅。
+        run: python -c "import cv2, numpy; print('opencv', cv2.__version__, '/ numpy', numpy.__version__)"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: 測試
+        run: pytest -q

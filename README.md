@@ -1,5 +1,7 @@
 # coc-cards — 部落衝突「卡牌衝突」換卡配對站
 
+[![CI](https://github.com/Ted-Hsu0630/coc-cards/actions/workflows/ci.yml/badge.svg)](https://github.com/Ted-Hsu0630/coc-cards/actions/workflows/ci.yml)
+
 部落成員各自登記收藏，網站自動算出**跟誰換、換哪張**。
 
 活動 2026-08-01 ~ 08-31，交換功能到 09-02 08:00 UTC。

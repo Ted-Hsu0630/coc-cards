@@ -16,7 +16,9 @@ import pytest
 
 cv2 = pytest.importorskip("cv2", reason="辨識功能需要 opencv，沒裝就跳過")
 
-from services import importer, recognize as R  # noqa: E402
+# 這兩行必須在 importorskip 之後，所以 E402 是刻意的
+from services import importer  # noqa: E402
+from services import recognize as R  # noqa: E402
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
 SAMPLES = BASE / "samples"

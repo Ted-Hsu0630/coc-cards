@@ -13,8 +13,8 @@ ground truth 裡的 `null` 代表「這格被切太多，期望程式回報認�
 
 import argparse
 import json
-from collections import defaultdict
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import cv2

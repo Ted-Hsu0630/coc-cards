@@ -9,8 +9,8 @@
 """
 
 import json
-from collections import defaultdict
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import cv2

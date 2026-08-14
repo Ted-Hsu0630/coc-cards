@@ -8,7 +8,8 @@ from fastapi import FastAPI, Request
 import config
 from core import cards, db
 from core.http_utils import RevalidatedStaticFiles, no_cache_page
-from routers import auth, collection, importer as import_router, matches
+from routers import auth, collection, matches
+from routers import importer as import_router
 from services import auth as auth_service
 from services import coc
 

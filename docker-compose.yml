@@ -1,0 +1,29 @@
+services:
+  coc-cards:
+    build: .
+    container_name: coc-cards
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 3848
+      DB_PATH: data/coc-cards.db
+      COOKIE_SECURE: "1"
+    volumes:
+      - coc_cards_data:/app/data
+    # 只給 Caddy 走，不對外開 port
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:3848/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  coc_cards_data:
+
+networks:
+  edge:
+    external: true
+    name: edge

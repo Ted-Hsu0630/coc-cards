@@ -339,6 +339,12 @@ async function loadClan() {
 
 /* ---------- 村莊管理 ---------- */
 
+const GRIP_SVG =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">' +
+  '<circle cx="6" cy="3" r="1.4"/><circle cx="10" cy="3" r="1.4"/>' +
+  '<circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/>' +
+  '<circle cx="6" cy="13" r="1.4"/><circle cx="10" cy="13" r="1.4"/></svg>';
+
 function renderVillages() {
   const list = $("#villageList");
   list.textContent = "";
@@ -346,19 +352,20 @@ function renderVillages() {
 
   if (many) {
     const tip = el("div", "card");
-    tip.append(el("p", "hint", "用 ↑ ↓ 調整順序，上方切換村莊的選單會跟著這個順序。"));
+    tip.append(el("p", "hint", "拖曳左側握把可調整順序，上方切換村莊的選單會跟著這個順序。"));
     list.append(tip);
   }
 
-  state.me.players.forEach((p, i) => {
-    const card = el("div", "card");
+  for (const p of state.me.players) {
+    const card = el("div", "card village");
+    card.dataset.tag = p.tag;
     const row = el("div", "village-row");
 
     if (many) {
-      const arrows = el("div", "arrows");
-      arrows.append(moveBtn("↑", i, i - 1, i === 0));
-      arrows.append(moveBtn("↓", i, i + 1, i === state.me.players.length - 1));
-      row.append(arrows);
+      const grip = el("div", "grip");
+      grip.innerHTML = GRIP_SVG;          // 固定字串，非使用者輸入
+      grip.title = "拖曳調整順序";
+      row.append(grip);
     }
 
     const who = el("div", "who");
@@ -378,28 +385,82 @@ function renderVillages() {
     }
     card.append(row);
     list.append(card);
-  });
+  }
 }
 
-function moveBtn(label, from, to, disabled) {
-  const b = el("button", "ghost move", label);
-  b.disabled = disabled;
-  b.addEventListener("click", async () => {
-    const order = state.me.players.map((p) => p.tag);
-    [order[from], order[to]] = [order[to], order[from]];
-    // 先鎖住避免連點造成順序競態，成功後重新載入讓下拉選單一起更新
-    for (const x of document.querySelectorAll(".move")) x.disabled = true;
+// 用 Pointer Events 自己實作，不用 HTML5 的 draggable —— 後者在行動瀏覽器上
+// 完全不會觸發，而這個站主要就是手機在用。
+// 只有握把能起拖，頁面本身才捲得動，「解除綁定」也還按得到。
+(function enableVillageDrag() {
+  const list = $("#villageList");
+  let card = null;
+  let startY = 0;
+  let originalOrder = [];
+
+  const cards = () => [...list.querySelectorAll(".village")];
+
+  list.addEventListener("pointerdown", (e) => {
+    const grip = e.target.closest(".grip");
+    if (!grip) return;
+    card = grip.closest(".village");
+    if (!card) return;
+
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    startY = e.clientY;
+    originalOrder = cards().map((c) => c.dataset.tag);
+    card.classList.add("dragging");
+  });
+
+  list.addEventListener("pointermove", (e) => {
+    if (!card) return;
+    card.style.transform = `translateY(${e.clientY - startY}px)`;
+
+    const mid = (n) => {
+      const r = n.getBoundingClientRect();
+      return r.top + r.height / 2;
+    };
+    const myMid = mid(card);
+    const prev = card.previousElementSibling?.classList.contains("village")
+      ? card.previousElementSibling : null;
+    const next = card.nextElementSibling?.classList.contains("village")
+      ? card.nextElementSibling : null;
+
+    let target = null;
+    if (prev && myMid < mid(prev)) target = prev;
+    else if (next && myMid > mid(next)) target = next;
+    if (!target) return;
+
+    // 搬動 DOM 之後版面位置變了，要把基準點補回來，否則卡片會憑空跳一格
+    const before = card.getBoundingClientRect().top;
+    if (target === prev) list.insertBefore(card, prev);
+    else list.insertBefore(next, card);
+    startY += card.getBoundingClientRect().top - before;
+  });
+
+  const finish = async () => {
+    if (!card) return;
+    card.style.transform = "";
+    card.classList.remove("dragging");
+    card = null;
+
+    const order = cards().map((c) => c.dataset.tag);
+    if (order.join() === originalOrder.join()) return;
+
     try {
       await api("/api/me/order", { method: "POST", body: JSON.stringify({ tags: order }) });
       await boot();
       show("villages");
     } catch (e) {
       alert(`調整順序失敗：${e.message}`);
-      renderVillages();
+      await boot();
+      show("villages");
     }
-  });
-  return b;
-}
+  };
+
+  list.addEventListener("pointerup", finish);
+  list.addEventListener("pointercancel", finish);
+})();
 
 $("#addForm").addEventListener("submit", async (e) => {
   e.preventDefault();

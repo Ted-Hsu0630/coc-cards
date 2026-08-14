@@ -199,9 +199,23 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .village-row { display: flex; align-items: center; gap: 10px; }
 .village-row .who { flex: 1; min-width: 0; }
 
-.arrows { display: flex; flex-direction: column; gap: 4px; }
-.arrows .move {
-  padding: 2px 9px; font-size: 15px; line-height: 1.3;
-  background: var(--panel-2); color: var(--text);
+.village { transition: box-shadow .15s, opacity .15s; }
+.village.dragging {
+  position: relative; z-index: 5;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+  border-color: var(--accent);
+  opacity: .95;
 }
-.arrows .move:disabled { opacity: .3; cursor: default; }
+
+.grip {
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 4px; margin: -6px 0;
+  color: var(--dim);
+  cursor: grab;
+  /* 觸控時不要讓瀏覽器把手勢解讀成捲動，否則拖不動 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.grip svg { fill: currentColor; display: block; }
+.village.dragging .grip { cursor: grabbing; color: var(--accent); }

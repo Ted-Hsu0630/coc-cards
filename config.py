@@ -16,8 +16,13 @@ COC_API_BASE = "https://api.clashofclans.com/v1"
 
 # 沒有 SECRET_KEY：session token 是 secrets.token_urlsafe(32) 直接存在資料庫裡的
 # 不透明隨機值，不帶任何內容也不需要簽章。要改成簽章式 cookie 才需要加回來。
+# data/ 在正式環境是 Docker named volume，只放**會變動的狀態**（資料庫）。
+# 靜態資料一律放 assets/ —— named volume 只在第一次建立時從映像檔複製內容，
+# 之後就完全遮蔽映像檔，放在 data/ 底下的靜態檔案更新永遠不會生效。
+# 卡表原本就踩在這個坑上（線上那份是 8/14 首次建容器時複製的），
+# 只是內容剛好還沒變過所以沒被發現。
 DB_PATH = BASE_DIR / os.environ.get("DB_PATH", "data/coc-cards.db")
-CARDS_PATH = BASE_DIR / "data" / "cards.json"
+CARDS_PATH = BASE_DIR / "assets" / "cards.json"
 
 SESSION_DAYS = 30
 SESSION_COOKIE = "coc_cards_session"

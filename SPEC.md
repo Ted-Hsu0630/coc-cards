@@ -92,7 +92,7 @@ builder-01 … builder-11
 super-01  … super-17
 ```
 
-存放於 `data/cards.json`，不進資料庫。之後遊戲加兵種只改這個檔。
+存放於 `assets/cards.json`，不進資料庫（**不可以放 `data/`**，那是 Docker volume，見 CLAUDE.md 紅線 9）。之後遊戲加兵種只改這個檔。
 
 ```json
 {

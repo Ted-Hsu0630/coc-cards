@@ -58,7 +58,10 @@ ssh server 'cd ~/coc-cards && ./update.sh'
 ## 結構
 
 ```
-data/cards.json      卡表（60 張）。名字打錯不影響配對，改這裡即可
+assets/cards.json    卡表（60 張）。名字打錯不影響配對，改這裡即可
+assets/digits/       徽章數字模板（截圖辨識用）
+assets/art/          卡面模板（只在視窗二選一時當裁判）
+data/                Docker named volume，只放資料庫 —— 靜態檔案放這裡不會生效
 core/cards.py        卡表載入 + 啟動時的結構驗證
 core/tags.py         村莊標籤正規化（# 沒編碼會得到 404，見 SPEC §8）
 core/db.py           SQLite schema 與連線

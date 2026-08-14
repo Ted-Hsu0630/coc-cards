@@ -14,7 +14,8 @@ load_dotenv(BASE_DIR / ".env", override=False)
 COC_API_KEY = os.environ.get("COC_API_KEY", "")
 COC_API_BASE = "https://api.clashofclans.com/v1"
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "")
+# 沒有 SECRET_KEY：session token 是 secrets.token_urlsafe(32) 直接存在資料庫裡的
+# 不透明隨機值，不帶任何內容也不需要簽章。要改成簽章式 cookie 才需要加回來。
 DB_PATH = BASE_DIR / os.environ.get("DB_PATH", "data/coc-cards.db")
 CARDS_PATH = BASE_DIR / "data" / "cards.json"
 

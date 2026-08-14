@@ -240,3 +240,69 @@ def test_跨裝置的長寬比確實不同():
     b = _img("IMG_4943")            # iPad
     ra, rb = a.shape[1] / a.shape[0], b.shape[1] / b.shape[0]
     assert abs(ra - rb) > 0.5, f"兩組的長寬比太接近（{ra:.2f} vs {rb:.2f}），測不到跨裝置"
+
+
+# --- 6. 進度條檢查碼 ---------------------------------------------------------
+#
+# 這是整套系統唯一的**獨立**驗證：進度條的數字是遊戲自己算的，
+# 跟我們的辨識毫無關係。辨識結果跟它對得上，才是真的有意義的正確性證據；
+# 自己跟自己比對永遠會過。
+
+from services import progress as P  # noqa: E402
+
+BARS = GT["_bars"]
+
+
+@pytest.mark.parametrize("name", ALBUM)
+def test_進度條讀出來的數字跟人工抄的一致(name):
+    img = _img(name)
+    got = P.read_progress(img)
+    want = BARS[GT[name]["player"]]
+    for key, pair in want.items():
+        if pair is None:
+            # 該系列已收集完，進度條變成「領取」按鈕 —— 讀不出來才是對的
+            assert key not in got, f"{key} 應該讀不出值，卻讀成 {got[key]}"
+        else:
+            assert key in got, f"{key} 讀不出來（正解 {pair[0]}/{pair[1]}）"
+            assert list(got[key]) == pair, f"{key} 讀成 {got[key]}，正解 {tuple(pair)}"
+
+
+def test_非相簿畫面讀不出進度條():
+    for name in ("IMG_4933", "IMG_4934", "IMG_4935"):
+        assert P.read_progress(_img(name)) == {}
+
+
+def test_辨識結果與進度條一致():
+    """完整上傳一位玩家的五張截圖，四個系列都要對得上。"""
+    res = importer.analyze([
+        (f"{n}.jpg", _path(n).read_bytes())
+        for n in ["IMG_4948", "IMG_4949", "IMG_4950", "IMG_4951", "IMG_4952"]
+    ])
+    groups = res["summary"]["series_owned"]
+    compared = [g for g in groups if g["owned"] is not None and g["expected"] is not None]
+    assert len(compared) == 4, "四個系列都該有可比對的數字"
+    for g in compared:
+        assert g["owned"] == g["expected"], f"{g['name']} 讀到 {g['owned']}，畫面上是 {g['expected']}"
+
+
+def test_混到別人的截圖時進度條會互相矛盾():
+    """成員把別人的截圖一起傳上來是實際會發生的事。
+
+    這時進度條會互相打架，寧可不給檢查碼也不要給錯的 —— 給錯的比沒有更糟。
+    """
+    res = importer.analyze([
+        ("我的.jpg", _path("IMG_4948").read_bytes()),
+        ("別人的.jpg", _path("IMG_4953").read_bytes()),
+    ])
+    noted = [g for g in res["summary"]["series_owned"] if g["bar_note"]]
+    assert noted, "進度條互相矛盾時要說出來"
+    for g in noted:
+        assert g["expected"] is None, "有矛盾就不可以挑一個當答案"
+
+
+def test_徽章數字模板涵蓋_0_到_9():
+    """模板原本只有 2、3、4（徽章上就只出現過這三個數字）。
+    補上進度條當來源之後才湊齊，x5 以上不再一律標成認不出。"""
+    digits = R.load_digits()
+    assert set(digits) == set(range(10)), f"缺 {sorted(set(range(10)) - set(digits))}"
+    assert "/" in P.load_templates(), "進度條要拼出 N/M 需要斜線模板"

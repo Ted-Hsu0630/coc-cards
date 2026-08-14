@@ -436,10 +436,14 @@ def match_digit(bitmap, digits, min_score=0.55):
 
 
 def load_digits() -> dict[int, np.ndarray]:
+    """只載入數字。同一個資料夾還有 slash.png，那是給進度條拼 "14/19" 用的，
+    徽章上不會出現斜線，混進來只會多一個永遠不該中的候選。"""
     d = BASE / "assets" / "digits"
     out = {}
     if d.is_dir():
         for p in sorted(d.glob("*.png")):
+            if not p.stem.isdigit():
+                continue
             img = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
             if img is not None:
                 out[int(p.stem)] = cv2.resize(img, (24, 32), interpolation=cv2.INTER_AREA).astype(np.float32)

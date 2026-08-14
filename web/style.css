@@ -249,3 +249,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* 需要人工確認的區塊要看得出來是「還沒完成」，不能跟已完成的長一樣 */
 #importNeedsCard { border-left: 3px solid var(--warn); }
+
+/* 進度條核對結果。「對得上」要看得出來是好消息，「對不上」要刺眼。 */
+.chip.good  { border-color: var(--ok); color: var(--ok); }
+.chip.wrong { border-color: var(--bad); color: var(--bad); background: #2a1416; }
+.ok-note { color: var(--ok); font-size: 13px; margin: 0 0 6px; flex: 1 0 100%; }

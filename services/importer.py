@@ -50,10 +50,12 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
     existing 是這個村莊目前資料庫裡的收藏，用來在「讀不出來」時顯示現值 ——
     使用者才知道不填的話會維持什麼，而不是被歸零。
     """
+    from services import progress as P
     from services import recognize as R
 
     existing = existing or {}
     digits, art = R.load_digits(), R.load_art()
+    bar_tmpl = P.load_templates()
 
     # report 與 results 不可以用 zip 對齊 —— 太大／讀不出來的檔案會進 report
     # 但不會進 results，後面每一筆就全部錯位、把 A 圖的結果掛到 B 圖上。
@@ -74,14 +76,21 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
         entry["_result"] = r
         images.append(img)
         results.append(r)
+        if r.ok:
+            # 畫面上方的系列進度條是遊戲自己算的，跟我們的辨識完全無關 ——
+            # 拿來當獨立檢查碼
+            entry["_bars"] = P.read_progress(img, bar_tmpl)
 
     R.resolve_batch(results, images=images, art=art)
 
     ids = R.album_ids()
     # card_id -> [(值或 None, 檔名, 說明)]
     seen: dict[str, list] = {}
+    bars: dict[str, list] = {}          # series -> [(值, 檔名)]
     for entry in report:
         r = entry.pop("_result", None)
+        for key, pair in entry.pop("_bars", {}).items():
+            bars.setdefault(key, []).append((tuple(pair), entry["name"]))
         if r is None or not r.ok:
             continue
         entry["cells"] = len(r.cells)
@@ -132,26 +141,40 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
             "need_input": len(need),
             "by_state": {s: sum(1 for r in out if r["state"] == s)
                          for s in ("read", "unknown", "conflict", "uncovered")},
-            "series_owned": _series_owned(out),
+            "series_owned": _series_owned(out, bars),
         },
     }
 
 
-def _series_owned(rows) -> list[dict]:
-    """每個系列「已擁有幾張」，讓使用者拿去跟遊戲內進度條核對。
+def _series_owned(rows, bars: dict[str, list] | None = None) -> list[dict]:
+    """每個系列「已擁有幾張」，以及跟畫面上進度條的比對結果。
 
-    只有該系列全部讀出來時才給數字 —— 有格子沒讀到就報不出可比對的總數，
+    只有該系列全部讀出來時才給 owned —— 有格子沒讀到就報不出可比對的總數，
     硬報一個偏低的數字反而會讓人以為辨識錯了。
+
+    expected 來自畫面上方的進度條，那是**遊戲自己算的**，跟我們的辨識完全
+    無關，所以兩者一致才是真的有意義的驗證。不同截圖的進度條互相矛盾時
+    （通常是把別人的截圖混進來了）一律不採用，寧可沒有檢查碼也不要錯的。
     """
+    bars = bars or {}
     out = []
     for key, s in cards_mod.series_meta().items():
         seg = [r for r in rows if r["series"] == key]
         unread = [r for r in seg if r["state"] != "read"]
+
+        expected, bar_note = None, ""
+        seen_vals = {v for v, _ in bars.get(key, [])}
+        if len(seen_vals) == 1:
+            expected = seen_vals.pop()[0]
+        elif len(seen_vals) > 1:
+            bar_note = "不同截圖的進度條數字不一致，可能混到別人的截圖了"
         out.append({
             "key": key,
             "name": s["name_zh"],
             "total": len(seg),
             "owned": sum(1 for r in seg if (r["value"] or 0) > 0) if not unread else None,
+            "expected": expected,
+            "bar_note": bar_note,
             "missing": len(unread),
         })
     return out

@@ -590,13 +590,43 @@ function redrawImport() {
   if (brk.length) sum.append(el("p", "hint", brk.join("　·　")));
 
   // 跟遊戲內進度條核對 —— 有格子沒讀到就報不出可比的數字，這時說清楚為什麼
+  // 跟畫面上方的進度條對照。那個數字是遊戲自己算的，跟辨識完全無關，
+  // 所以對得上才是真的有意義的驗證 —— 不是自己跟自己說沒問題。
   const chk = el("div", "checkrow");
-  chk.append(el("p", "hint", "拿這個跟遊戲畫面上方的進度條對一下："));
-  for (const g of state.importSeries || []) {
-    const t = g.owned === null
-      ? `${g.name} —（還有 ${g.missing} 格沒讀到，算不出來）`
-      : `${g.name} ${g.owned}/${g.total}`;
-    chk.append(el("span", `chip ${g.owned === null ? "faded" : ""}`, t));
+  const groups = state.importSeries || [];
+  const compared = groups.filter((g) => g.owned !== null && g.expected !== null);
+  const bad = compared.filter((g) => g.owned !== g.expected);
+
+  if (compared.length && !bad.length) {
+    chk.append(el("p", "ok-note", `已跟遊戲畫面的進度條核對過 ${compared.length} 個系列，數字都對得上。`));
+  } else if (bad.length) {
+    chk.append(el("p", "error", "跟遊戲畫面的進度條對不上，這批結果有問題，請逐格檢查："));
+  } else {
+    chk.append(el("p", "hint", "各系列已擁有張數（進度條讀不到，無法自動核對）："));
+  }
+
+  for (const g of groups) {
+    let text, cls;
+    if (g.owned === null && g.expected === null) {
+      text = `${g.name} —`;
+      cls = "faded";
+    } else if (g.owned === null) {
+      text = `${g.name} 畫面上是 ${g.expected}/${g.total}（還有 ${g.missing} 格沒讀到）`;
+      cls = "faded";
+    } else if (g.expected === null) {
+      text = `${g.name} ${g.owned}/${g.total}（進度條讀不到，沒得核對）`;
+      cls = "faded";
+    } else if (g.owned === g.expected) {
+      text = `${g.name} ${g.owned}/${g.total} ✓`;
+      cls = "good";
+    } else {
+      text = `${g.name} 讀到 ${g.owned}、畫面上是 ${g.expected} ✗`;
+      cls = "wrong";
+    }
+    const chip = el("span", `chip ${cls}`, text);
+    if (g.bar_note) chip.title = g.bar_note;
+    chk.append(chip);
+    if (g.bar_note) chk.append(el("p", "warn", g.bar_note));
   }
   sum.append(chk);
 

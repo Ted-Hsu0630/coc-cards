@@ -20,7 +20,21 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def purge_expired_sessions(conn) -> int:
+    """清掉過期的 session，回傳刪除筆數。
+
+    `expires_at` 一律是 `db.now()` 產出的 UTC ISO8601（同格式、同 +00:00 結尾），
+    所以字串比大小等同時間比大小，不需要逐列解析。
+    """
+    cur = conn.execute("DELETE FROM sessions WHERE expires_at < ?", (db.now(),))
+    return cur.rowcount
+
+
 def create_session(conn, user_id: int, active_tag: str | None) -> str:
+    # 搭登入的順風車清一次。session 只在登入時產生，所以這裡跑就夠密集了，
+    # 不值得為它多養一個背景排程。
+    purge_expired_sessions(conn)
+
     token = _new_token()
     expires = (datetime.now(UTC) + timedelta(days=config.SESSION_DAYS)).isoformat()
     conn.execute(

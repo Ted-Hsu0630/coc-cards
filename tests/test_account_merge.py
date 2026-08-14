@@ -150,3 +150,51 @@ def test_搬移後原帳號的_session_失效(client):
     for k, v in stolen.items():
         client.cookies.set(k, v)
     assert client.get("/api/me").json()["logged_in"] is False
+
+
+def test_過期的_session_會被清掉(client):
+    from datetime import UTC, datetime, timedelta
+
+    from core import db
+    from services import auth
+
+    login(client, "#AAA")
+
+    with db.session() as conn:
+        # 手動塞三個已過期的 session，外加登入時那個有效的
+        past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+        for i in range(3):
+            conn.execute(
+                "INSERT INTO sessions (token,user_id,active_tag,expires_at,created_at)"
+                " VALUES (?,?,?,?,?)",
+                (f"old{i}", 1, "#AAA", past, past),
+            )
+        assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 4
+
+    # 下一次登入順便清
+    client.cookies.clear()
+    login(client, "#AAA")
+
+    with db.session() as conn:
+        rows = conn.execute("SELECT token FROM sessions").fetchall()
+        assert not [r["token"] for r in rows if r["token"].startswith("old")]
+
+        # 直接呼叫也要能用，且不可誤刪未過期的
+        before = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        assert auth.purge_expired_sessions(conn) == 0
+        assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == before
+
+
+def test_過期的_session_不能用來存取(client):
+    from datetime import UTC, datetime, timedelta
+
+    from core import db
+
+    login(client, "#AAA")
+    with db.session() as conn:
+        conn.execute(
+            "UPDATE sessions SET expires_at = ?",
+            ((datetime.now(UTC) - timedelta(seconds=1)).isoformat(),),
+        )
+    assert client.get("/api/me").json()["logged_in"] is False
+    assert client.get("/api/collection").status_code == 401

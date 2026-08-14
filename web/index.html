@@ -16,6 +16,7 @@
   </div>
   <nav class="tabs">
     <button data-view="collection" class="active" type="button">我的收藏</button>
+    <button data-view="import" type="button" hidden>截圖匯入</button>
     <button data-view="matches" type="button">配對</button>
     <button data-view="clan" type="button">部落總覽</button>
     <button data-view="villages" type="button">村莊</button>
@@ -83,6 +84,53 @@
       </label>
     </div>
     <div id="clanBody"></div>
+  </section>
+
+  <!-- 截圖匯入 -->
+  <section id="view-import" class="view" hidden>
+    <form id="importForm" class="card">
+      <h2>用截圖填收藏</h2>
+      <p class="hint">
+        在遊戲裡打開卡牌衝突的相簿，由上往下捲、每頁拍一張，
+        <b>5 張就拍得完 60 格</b>。相簿以外的畫面會被自動略過。
+      </p>
+      <label>選擇截圖（一次最多 12 張）
+        <input id="importFiles" type="file" accept="image/*" multiple>
+      </label>
+      <button type="submit" class="primary" id="importBtn" disabled>開始辨識</button>
+      <p class="hint">辨識完會先讓你核對，<b>確認之前不會動到你的收藏</b>。</p>
+      <p class="error" id="importError" hidden></p>
+    </form>
+
+    <div id="importResult" hidden>
+      <div class="card">
+        <h2>每張圖的結果</h2>
+        <ul class="filelist" id="importFileList"></ul>
+      </div>
+
+      <div class="card" id="importSummary"></div>
+
+      <div class="card" id="importNeedsCard" hidden>
+        <h2 id="importNeedsTitle"></h2>
+        <p class="hint">
+          辨識不出來的格子<b>刻意留白</b>，不會猜一個數字給你。
+          不填的話會維持目前資料庫裡的值。
+        </p>
+        <div id="importNeeds"></div>
+      </div>
+
+      <div class="card">
+        <h2>讀出來的</h2>
+        <p class="hint">這些會覆蓋你目前的收藏。有讀錯的話直接在這裡改。</p>
+        <div id="importRead"></div>
+      </div>
+
+      <div class="card save-row">
+        <span class="hint" id="importApplyHint"></span>
+        <button type="button" class="ghost" id="importCancel">取消</button>
+        <button type="button" class="primary" id="importApply">套用到我的收藏</button>
+      </div>
+    </div>
   </section>
 
   <!-- 村莊管理 -->

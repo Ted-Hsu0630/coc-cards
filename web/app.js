@@ -489,6 +489,201 @@ $("#addForm").addEventListener("submit", async (e) => {
   }
 });
 
+/* ---------- 截圖匯入 ---------- */
+
+// 辨識出來的結果放這裡，**在按下「套用」之前完全不碰 state.counts**。
+// 使用者可能看一看就切走，那不該留下任何痕跡。
+const imp = { rows: [], picks: {} };
+
+const IMPORT_STATE = {
+  read: { label: "讀出來了", cls: "ok" },
+  unknown: { label: "認不出", cls: "warn" },
+  conflict: { label: "兩張截圖不一致", cls: "bad" },
+  uncovered: { label: "沒有截圖拍到", cls: "dim" },
+};
+
+// 這格最後會寫進去的值。使用者沒選就沿用資料庫現值 ——
+// 回傳 null 代表「不要動它」，跟「設成 0」是兩回事。
+function importFinal(row) {
+  if (row.id in imp.picks) return imp.picks[row.id];
+  if (row.state === "read") return row.value;
+  return null;
+}
+
+function importCountSelect(row, onPick) {
+  const sel = el("select");
+  const blank = el("option", null, row.state === "read" ? "" : "— 未填 —");
+  blank.value = "";
+  sel.append(blank);
+  for (let i = 0; i <= state.maxCount; i++) {
+    const o = el("option", null, String(i));
+    o.value = String(i);
+    sel.append(o);
+  }
+  const cur = importFinal(row);
+  sel.value = cur === null || cur === undefined ? "" : String(cur);
+  sel.addEventListener("change", () => {
+    if (sel.value === "") delete imp.picks[row.id];
+    else imp.picks[row.id] = Number(sel.value);
+    onPick();
+  });
+  return sel;
+}
+
+function importRow(row, onPick) {
+  const wrap = el("div", "imp-row");
+  const meta = IMPORT_STATE[row.state];
+
+  const left = el("div", "imp-name");
+  left.append(el("span", "imp-card", row.name));
+  const tag = el("span", `tag ${meta.cls}`, meta.label);
+  left.append(tag);
+  if (row.note) left.append(el("p", "hint", row.note));
+  if (row.state !== "read") {
+    const cur = row.current === null || row.current === undefined ? 0 : row.current;
+    left.append(el("p", "hint", `不填的話維持目前的 ${cur} 張`));
+  }
+
+  wrap.append(left, importCountSelect(row, onPick));
+  return wrap;
+}
+
+function renderImport(data) {
+  imp.rows = data.cards;
+  imp.picks = {};
+
+  const list = $("#importFileList");
+  list.textContent = "";
+  for (const f of data.files) {
+    const li = el("li", f.ok ? "ok" : "bad");
+    if (f.ok) {
+      const exact = f.exact ? "" : "（顏色排列不完全吻合，位置把握較低）";
+      li.textContent = `${f.name} —— 相簿第 ${f.range[0]}~${f.range[1]} 張${exact}`;
+    } else {
+      li.textContent = `${f.name} —— 不採用：${f.reason}`;
+    }
+    list.append(li);
+  }
+
+  redrawImport();
+  $("#importResult").hidden = false;
+}
+
+function redrawImport() {
+  const s = { read: 0, unknown: 0, conflict: 0, uncovered: 0 };
+  for (const r of imp.rows) s[r.state]++;
+  const filled = imp.rows.filter((r) => r.state !== "read" && importFinal(r) !== null).length;
+  const left = imp.rows.length - s.read - filled;
+
+  const sum = $("#importSummary");
+  sum.textContent = "";
+  sum.append(el("h2", null, `60 張裡讀出 ${s.read} 張`));
+  if (left > 0) {
+    sum.append(el("p", "warn", `還有 ${left} 張沒有值，這些會維持你目前的收藏不變。`));
+  } else {
+    sum.append(el("p", "hint", "全部都有值了。"));
+  }
+  const brk = [];
+  if (s.unknown) brk.push(`認不出 ${s.unknown}`);
+  if (s.conflict) brk.push(`兩張截圖不一致 ${s.conflict}`);
+  if (s.uncovered) brk.push(`沒拍到 ${s.uncovered}`);
+  if (brk.length) sum.append(el("p", "hint", brk.join("　·　")));
+
+  // 跟遊戲內進度條核對 —— 有格子沒讀到就報不出可比的數字，這時說清楚為什麼
+  const chk = el("div", "checkrow");
+  chk.append(el("p", "hint", "拿這個跟遊戲畫面上方的進度條對一下："));
+  for (const g of state.importSeries || []) {
+    const t = g.owned === null
+      ? `${g.name} —（還有 ${g.missing} 格沒讀到，算不出來）`
+      : `${g.name} ${g.owned}/${g.total}`;
+    chk.append(el("span", `chip ${g.owned === null ? "faded" : ""}`, t));
+  }
+  sum.append(chk);
+
+  const needs = imp.rows.filter((r) => r.state !== "read");
+  const needsCard = $("#importNeedsCard");
+  needsCard.hidden = needs.length === 0;
+  if (needs.length) {
+    $("#importNeedsTitle").textContent = `需要你確認的 ${needs.length} 張`;
+    const box = $("#importNeeds");
+    box.textContent = "";
+    for (const r of needs) box.append(importRow(r, redrawImport));
+  }
+
+  const readBox = $("#importRead");
+  readBox.textContent = "";
+  for (const r of imp.rows.filter((x) => x.state === "read")) {
+    readBox.append(importRow(r, redrawImport));
+  }
+
+  const willWrite = imp.rows.filter((r) => importFinal(r) !== null).length;
+  $("#importApplyHint").textContent = `會寫入 ${willWrite} 張，其餘 ${60 - willWrite} 張維持原值`;
+}
+
+$("#importFiles").addEventListener("change", (e) => {
+  $("#importBtn").disabled = e.target.files.length === 0;
+});
+
+$("#importForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const files = $("#importFiles").files;
+  if (!files.length) return;
+
+  const btn = $("#importBtn");
+  const err = $("#importError");
+  err.hidden = true;
+  btn.disabled = true;
+  btn.textContent = "辨識中…";
+  try {
+    const fd = new FormData();
+    for (const f of files) fd.append("files", f);
+    // 不能用 api()：那個會塞 Content-Type: application/json，
+    // multipart 的 boundary 必須讓瀏覽器自己帶
+    const res = await fetch("/api/import/screenshots", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    state.importSeries = data.summary.series_owned;
+    renderImport(data);
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "開始辨識";
+  }
+});
+
+$("#importCancel").addEventListener("click", () => {
+  $("#importResult").hidden = true;
+  $("#importFiles").value = "";
+  $("#importBtn").disabled = true;
+  imp.rows = [];
+  imp.picks = {};
+});
+
+$("#importApply").addEventListener("click", async () => {
+  const next = { ...state.counts };
+  for (const r of imp.rows) {
+    const v = importFinal(r);
+    if (v !== null) next[r.id] = v;      // null = 沒有值，維持原本的
+  }
+  const btn = $("#importApply");
+  btn.disabled = true;
+  try {
+    await api("/api/collection", { method: "PUT", body: JSON.stringify({ counts: next }) });
+    state.counts = next;
+    state.dirty = false;
+    $("#importCancel").click();
+    await loadCollection();
+    show("collection");
+  } catch (ex) {
+    $("#importError").textContent = ex.message;
+    $("#importError").hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 /* ---------- 啟動 ---------- */
 
 async function boot() {
@@ -515,6 +710,14 @@ async function boot() {
     o.value = p.tag;
     if (p.tag === me.active_tag) o.selected = true;
     picker.append(o);
+  }
+
+  // 沒裝 opencv 的伺服器不顯示這個分頁 —— 顯示了按下去只會拿到 501
+  try {
+    const cap = await api("/api/import/available");
+    $('.tabs button[data-view="import"]').hidden = !cap.available;
+  } catch {
+    /* 舊版伺服器沒有這支 API，維持隱藏就好 */
   }
 
   await loadCollection();

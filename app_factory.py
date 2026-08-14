@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 import config
 from core import cards, db
 from core.http_utils import RevalidatedStaticFiles, no_cache_page
-from routers import auth, collection, matches
+from routers import auth, collection, importer as import_router, matches
 from services import auth as auth_service
 from services import coc
 
@@ -48,6 +48,9 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(collection.router)
     app.include_router(matches.router)
+    # 截圖辨識是選用功能：沒裝 opencv 時路由照樣掛著，
+    # /api/import/available 會回 false，前端就不顯示那個分頁
+    app.include_router(import_router.router)
 
     @app.get("/healthz")
     def healthz():

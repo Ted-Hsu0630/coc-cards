@@ -219,3 +219,33 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .grip svg { fill: currentColor; display: block; }
 .village.dragging .grip { cursor: grabbing; color: var(--accent); }
+
+/* --- 截圖匯入 --- */
+.filelist { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.filelist li { padding: 6px 0 6px 22px; position: relative; border-bottom: 1px solid var(--line); }
+.filelist li:last-child { border-bottom: 0; }
+.filelist li::before { position: absolute; left: 0; font-weight: 700; }
+.filelist li.ok::before { content: "✓"; color: var(--ok); }
+.filelist li.bad { color: var(--dim); }
+.filelist li.bad::before { content: "✕"; color: var(--bad); }
+
+.checkrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.checkrow .hint { flex: 1 0 100%; margin: 0 0 2px; }
+
+.imp-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.imp-row:last-child { border-bottom: 0; }
+.imp-name { flex: 1; min-width: 0; }
+.imp-card { font-size: 15px; margin-right: 8px; }
+.imp-row select { width: auto; min-width: 92px; margin-top: 0; flex: 0 0 auto; }
+.imp-row .hint { margin: 3px 0 0; }
+
+.tag.ok { background: var(--ok); color: #10231a; border-color: var(--ok); }
+.tag.warn { background: var(--warn); color: #2a1608; border-color: var(--warn); }
+.tag.bad { background: var(--bad); color: #2a0d0e; border-color: var(--bad); }
+.tag.dim { color: var(--dim); }
+
+/* 需要人工確認的區塊要看得出來是「還沒完成」，不能跟已完成的長一樣 */
+#importNeedsCard { border-left: 3px solid var(--warn); }

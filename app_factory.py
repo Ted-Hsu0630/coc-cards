@@ -3,12 +3,11 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
 
 import config
 from core import cards, db
+from core.http_utils import RevalidatedStaticFiles, no_cache_page
 from routers import auth, collection, matches
 from services import coc
 
@@ -30,6 +29,14 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="coc-cards", lifespan=lifespan, docs_url=None, redoc_url=None)
 
+    @app.middleware("http")
+    async def no_store_api(request: Request, call_next):
+        response = await call_next(request)
+        # 配對結果會隨別人更新收藏而變，被快取住就會看到過時的建議
+        if request.url.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     app.include_router(auth.router)
     app.include_router(collection.router)
     app.include_router(matches.router)
@@ -40,10 +47,12 @@ def create_app() -> FastAPI:
 
     web = config.BASE_DIR / "web"
     if web.is_dir():
-        app.mount("/static", StaticFiles(directory=web), name="static")
+        app.mount("/static", RevalidatedStaticFiles(directory=web), name="static")
 
         @app.get("/")
         def index():
-            return FileResponse(web / "index.html")
+            # 不直接回 FileResponse：要在送出時把 ?v=<mtime> 注入資源 URL，
+            # 否則部署完使用者手上還是舊的 app.js（見 core/http_utils.py）
+            return no_cache_page(web / "index.html", web)
 
     return app

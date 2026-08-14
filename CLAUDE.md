@@ -27,7 +27,15 @@
 6. **`db.connect()` 的 `check_same_thread=False` 不可拿掉**，
    但也**不可改成模組層級的共用連線**。理由寫在該行的註解裡。
 
-7. **卡表的名字可以錯，結構不可以錯**。配對只吃 id 與 series。
+7. **首頁要走 `no_cache_page()`，不可以改回 `FileResponse`**。
+   它會在送出時把 `?v=<mtime>` 注入 CSS/JS/圖片的 URL —— 這是部署後強制更新的唯一手段。
+   單靠 `Cache-Control: no-cache` 不夠：那只保證「用之前先問伺服器」，
+   而使用者常常整天不重新整理，手機瀏覽器也可能整個略過重驗證。
+   同理 **HTML 原始檔裡不可以手寫 `?v=`**，會跟注入疊加。
+   做法與 All-in-One Downloader 的 `app/web/http_utils.py` 相同，
+   `tests/test_asset_versioning.py` 守著。
+
+8. **卡表的名字可以錯，結構不可以錯**。配對只吃 id 與 series。
    `core/cards.py` 在啟動時驗證張數（19/13/11/17 = 60），對不上就讓程式炸掉 ——
    配對算錯是靜默的，啟動失敗是吵的。
 

@@ -1,0 +1,9 @@
+line-length = 110
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]  # FastAPI 的 Depends() 就是寫在預設值裡
+
+[lint.per-file-ignores]
+"tests/*" = ["E501"]

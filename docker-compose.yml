@@ -1,18 +1,31 @@
+# 這份可以獨立跑起來：
+#
+#     cp .env.example .env      # 填入 COC_API_KEY
+#     docker compose up -d
+#     open http://localhost:3848
+#
+# **站台自己的環境不要寫進這裡** —— 反向代理、共用網路、憑證那些東西每台機器
+# 都不一樣，寫死在這裡別人就 clone 不動了。放 docker-compose.override.yml，
+# Compose 會自動疊上去，而且那個檔名已在 .gitignore。
+# 範例見 docker-compose.override.example.yml。
+
 services:
   coc-cards:
     build: .
     container_name: coc-cards
     restart: unless-stopped
     env_file: .env
-    environment:
-      PORT: 3848
-      DB_PATH: data/coc-cards.db
-      COOKIE_SECURE: "1"
+    ports:
+      # 只綁 127.0.0.1。正式機是靠反向代理從內部網路連進來的，
+      # 綁 0.0.0.0 會讓人繞過代理直接打到後端。
+      - "127.0.0.1:3848:3848"
     volumes:
+      # **只放資料庫。** named volume 會完全遮蔽映像檔裡的同路徑，
+      # 靜態資料放進來的話更新永遠不會生效（見 CLAUDE.md 紅線 9），所以那些在 assets/。
       - coc_cards_data:/app/data
-    # 只給 Caddy 走，不對外開 port
-    networks: [edge]
     healthcheck:
+      # 不只看容器活著，要真的打得通 —— CoC API key 綁來源 IP，
+      # key 失效時容器起得來但功能全壞。
       test: ["CMD", "python", "-c",
              "import urllib.request;urllib.request.urlopen('http://127.0.0.1:3848/healthz')"]
       interval: 30s
@@ -22,8 +35,3 @@ services:
 
 volumes:
   coc_cards_data:
-
-networks:
-  edge:
-    external: true
-    name: edge

@@ -1,0 +1,18 @@
+# 複製成 docker-compose.override.yml 就會被自動套用（那個檔名在 .gitignore，
+# 不會進版控，也不會被 git pull 覆蓋）。
+#
+# 這裡放「只有你這台機器需要」的設定。最常見的是把容器接到反向代理所在的
+# Docker 網路 —— 代理就能用容器名稱連進來，不必對外開 port。
+#
+#     cp docker-compose.override.example.yml docker-compose.override.yml
+#     docker compose config          # 確認合併後的結果
+#     docker compose up -d
+
+services:
+  coc-cards:
+    networks: [proxy]
+
+networks:
+  proxy:
+    external: true
+    name: proxy        # 改成你的反向代理實際用的網路名稱

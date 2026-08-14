@@ -50,6 +50,7 @@ async def get_matches(
 
 @router.get("/clan/overview")
 async def clan_overview(
+    same_clan: bool = Query(default=True),
     conn: sqlite3.Connection = Depends(get_conn),
     tag: str = Depends(require_active_tag),
 ):
@@ -61,11 +62,18 @@ async def clan_overview(
 
     everyone = players.all_players(conn)
     collections = players.all_collections(conn)
-    total = len(cards.all_cards())
+    all_ids = [c.id for c in cards.all_cards()]
+    total = len(all_ids)
     me = everyone.get(tag, {})
+    my_clan = me.get("clan_tag")
 
     rows = []
     for t, info in everyone.items():
+        in_my_clan = bool(my_clan) and info["clan_tag"] == my_clan
+        # 預設只看同部落：這個站不限部落，全部列出來就變成一份陌生人名單，
+        # 也把每個註冊者的暱稱與進度攤給所有人看。自己的村莊一律保留。
+        if same_clan and not in_my_clan and t != tag:
+            continue
         counts = collections.get(t, {})
         rows.append(
             {
@@ -73,11 +81,11 @@ async def clan_overview(
                 "name": info["name"],
                 "clan_tag": info["clan_tag"],
                 "clan_name": info["clan_name"],
-                "same_clan": bool(me.get("clan_tag")) and info["clan_tag"] == me.get("clan_tag"),
-                "collected": sum(1 for c in cards.all_cards() if counts.get(c.id, 0) > 0),
+                "same_clan": in_my_clan,
+                "collected": sum(1 for c in all_ids if counts.get(c, 0) > 0),
                 "total": total,
                 "has_data": bool(counts),
             }
         )
     rows.sort(key=lambda r: (not r["same_clan"], -r["collected"], r["name"]))
-    return {"players": rows}
+    return {"players": rows, "same_clan_only": same_clan}

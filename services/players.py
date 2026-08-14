@@ -141,9 +141,11 @@ def _is_stale(synced_at: str | None) -> bool:
         return True
     try:
         ts = datetime.fromisoformat(synced_at)
-    except ValueError:
+        return datetime.now(UTC) - ts > timedelta(seconds=config.CLAN_CACHE_SECONDS)
+    except (ValueError, TypeError):
+        # 讀不懂的時間戳（例如早期寫入的無時區值，相減會拋 TypeError）
+        # 一律當成過期重抓，不要讓整個配對頁 500
         return True
-    return datetime.now(UTC) - ts > timedelta(seconds=config.CLAN_CACHE_SECONDS)
 
 
 async def sync_clans(conn) -> int:

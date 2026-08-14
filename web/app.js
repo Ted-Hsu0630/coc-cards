@@ -298,13 +298,15 @@ function altRow(label, ids, cls) {
 
 /* ---------- 部落總覽 ---------- */
 
+$("#clanSameOnly").addEventListener("change", loadClan);
+
 async function loadClan() {
   const body = $("#clanBody");
   body.textContent = "";
   body.append(el("div", "empty", "讀取中…"));
   let data;
   try {
-    data = await api("/api/clan/overview");
+    data = await api(`/api/clan/overview?same_clan=${$("#clanSameOnly").checked ? "1" : "0"}`);
   } catch (e) {
     body.textContent = "";
     body.append(el("div", "empty", `讀取失敗：${e.message}`));

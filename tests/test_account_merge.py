@@ -106,6 +106,38 @@ def test_來源帳號有多個村莊時拒絕並說明怎麼辦(client):
     assert users_count() == 2        # 什麼都沒被動到
 
 
+def test_另一台裝置解除綁定後舊_session_會自動退回可用的村莊(client):
+    """實際會發生：同一帳號在另一台裝置解除綁定，舊裝置的 active_tag 就懸空了。
+
+    修正前的症狀很嚇人 —— 使用者看到一張空白的 60 格收藏表（以為資料不見了），
+    重填一次按儲存還會被 403 擋掉。
+    """
+    login(client, "#AAA")
+    login(client, "#BBB")               # 同帳號兩個村莊，目前選的是 #BBB
+    old_device = dict(client.cookies)
+
+    client.cookies.clear()              # 換一台裝置
+    login(client, "#AAA")
+    client.delete("/api/players/%23BBB")
+
+    client.cookies.clear()              # 回到舊裝置
+    for k, v in old_device.items():
+        client.cookies.set(k, v)
+
+    me = client.get("/api/me").json()
+    assert me["active_tag"] == "#AAA"   # 自動退回仍持有的村莊，不是懸空的 #BBB
+    assert client.get("/api/collection").json()["tag"] == "#AAA"
+    assert client.put("/api/collection", json={"counts": {"elixir-01": 2}}).status_code == 200
+
+
+def test_一個村莊都不剩時給明確錯誤(client):
+    login(client, "#AAA")
+    client.delete("/api/players/%23AAA")
+    r = client.get("/api/collection")
+    assert r.status_code == 400
+    assert "村莊" in r.json()["detail"]
+
+
 def test_搬移後原帳號的_session_失效(client):
     login(client, "#BBB")
     stolen = dict(client.cookies)    # #BBB 原本那台裝置的 session

@@ -67,7 +67,9 @@ def me(
     if sess is None:
         return {"logged_in": False}
     mine = players.players_of_user(conn, sess["user_id"])
-    active = sess.get("active_tag") or (mine[0]["tag"] if mine else None)
+    # 跟 require_active_tag 走同一條解析邏輯，否則會出現
+    # 「/api/me 說目前是 X、但 /api/collection 用的是 Y」這種前後不一致
+    active = auth.resolve_active_tag(conn, sess)
     return {
         "logged_in": True,
         "active_tag": active,
@@ -116,8 +118,8 @@ def unbind(
 def logout(
     response: Response,
     conn: sqlite3.Connection = Depends(get_conn),
-    coc_cards_session: str | None = Cookie(default=None),
+    token: str | None = Cookie(default=None, alias=config.SESSION_COOKIE),
 ):
-    auth.destroy_session(conn, coc_cards_session)
+    auth.destroy_session(conn, token)
     response.delete_cookie(config.SESSION_COOKIE)
     return {"ok": True}

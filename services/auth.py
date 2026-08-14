@@ -50,8 +50,30 @@ def destroy_session(conn, token: str | None) -> None:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
 
 
-def set_active_tag(conn, token: str, tag: str) -> None:
+def set_active_tag(conn, token: str, tag: str | None) -> None:
     conn.execute("UPDATE sessions SET active_tag = ? WHERE token = ?", (tag, token))
+
+
+def resolve_active_tag(conn, sess: dict) -> str | None:
+    """回傳這個 session 目前實際可用的村莊，必要時修正並寫回。
+
+    `active_tag` 會失效：同一個帳號在另一台裝置解除綁定、或村莊被併到別的帳號時，
+    舊 session 仍指著那個標籤。不修正的話使用者會看到一張**空白的收藏表**
+    （以為資料不見了），重填之後按儲存還會被 403 擋掉。
+
+    所以這裡不只是檢查，還會退回到第一個仍持有的村莊並寫回 session。
+    """
+    owned = [p["tag"] for p in players.players_of_user(conn, sess["user_id"])]
+    if not owned:
+        if sess.get("active_tag") is not None:
+            set_active_tag(conn, sess["token"], None)
+        return None
+
+    tag = sess.get("active_tag")
+    if tag not in owned:
+        tag = owned[0]
+        set_active_tag(conn, sess["token"], tag)
+    return tag
 
 
 def _create_user(conn) -> int:

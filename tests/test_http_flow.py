@@ -133,3 +133,37 @@ def test_張數超出上限會被拒絕(client):
 def test_標籤打錯回404而不是401(client):
     r = client.post("/api/players/verify", json={"tag": "#ZZZ", "token": "badtok"})
     assert r.status_code == 404
+
+
+def test_部落總覽預設只顯示同部落(client, monkeypatch):
+    from services import coc
+
+    async def get_player(tag):
+        clan = "#OTHER" if tag == "#FAR" else "#C1"
+        return {"tag": tag, "name": f"村莊{tag}", "clan_tag": clan, "clan_name": clan}
+
+    monkeypatch.setattr(coc, "get_player", get_player)
+
+    login(client, "#FAR")          # 別的部落
+    client.cookies.clear()
+    login(client, "#MATE")         # 同部落
+    client.cookies.clear()
+    login(client, "#MAIN")
+
+    default = client.get("/api/clan/overview").json()
+    assert {r["tag"] for r in default["players"]} == {"#MAIN", "#MATE"}
+
+    everyone = client.get("/api/clan/overview?same_clan=0").json()
+    assert {r["tag"] for r in everyone["players"]} == {"#MAIN", "#MATE", "#FAR"}
+
+
+def test_無部落時總覽至少看得到自己(client, monkeypatch):
+    from services import coc
+
+    async def get_player(tag):
+        return {"tag": tag, "name": f"村莊{tag}", "clan_tag": None, "clan_name": None}
+
+    monkeypatch.setattr(coc, "get_player", get_player)
+    login(client, "#SINGLE")
+    rows = client.get("/api/clan/overview").json()["players"]
+    assert [r["tag"] for r in rows] == ["#SINGLE"]

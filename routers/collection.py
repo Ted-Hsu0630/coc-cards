@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 import config
 from core import cards
-from routers.deps import get_conn, require_active_tag, require_session
+from routers.deps import get_conn, require_active_tag
 from services import players
 
 router = APIRouter(prefix="/api", tags=["collection"])
@@ -37,12 +37,9 @@ def read_collection(
 def write_collection(
     counts: dict[str, int] = Body(embed=True),
     conn: sqlite3.Connection = Depends(get_conn),
-    sess: dict = Depends(require_session),
     tag: str = Depends(require_active_tag),
 ):
-    owned = {p["tag"] for p in players.players_of_user(conn, sess["user_id"])}
-    if tag not in owned:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "這個村莊不屬於你的帳號")
+    # 不再各自檢查擁有權：require_active_tag 保證回傳的一定是本帳號持有的村莊
     try:
         saved = players.save_collection(conn, tag, counts)
     except ValueError as e:

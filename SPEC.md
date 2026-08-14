@@ -390,7 +390,7 @@ POST   /api/recognize           multipart 圖片   → 階段二，回傳辨識�
 - Base `https://api.clashofclans.com/v1`，header `Authorization: Bearer <COC_API_KEY>`
 - tag 要 URL-encode：`#` → `%23`，字母轉大寫。**未編碼的 `#` 會得到 404 而不是錯誤訊息**（實測），
   這種 404 很容易被誤判成「查無此玩家」，tag 正規化要在同一個地方做掉。
-- **API key 綁來源 IP**（本 key 綁 `<伺服器公網 IP>`）。IP 一變全部 403 —
+- **API key 綁來源 IP**（在 developer 後台指定的 CIDR）。IP 一變全部 403 —
   錯誤訊息要明確講出這件事，不要讓人以為是別的問題。
 - key 只放伺服器 `.env`，不得出現在前端或版控
 
@@ -478,8 +478,8 @@ commit 訊息用中文、一件事一個 commit、不加 AI 署名。
 
 - [x] 60 張卡的名字全數確認（中文對照遊戲畫面，英文交叉驗證，見 §3.3）
 - [x] 商人張數規則 —— **決定不做**，理由見 §2.4
-- [x] CoC API key 已取得並實測可用（綁 `<伺服器公網 IP>`；開發機與伺服器共用同一公網 IP，本機即可開發）
-- [x] `verifytoken` 端對端實測通過（`#9QRUL2CVJ` / 炭烤椒鹽海豹 / TH18 / 《天堂》`#0CUY8QRL2` 32 人）
+- [x] CoC API key 已取得並實測可用（key 綁來源 IP；開發機與伺服器共用同一公網 IP，本機即可開發）
+- [x] `verifytoken` 端對端實測通過（真實帳號、真實部落，正確與錯誤權杖各測一次）
 - [x] 5 張原始截圖已放進 `samples/`（`IMG_4926`~`IMG_4930.PNG`，依編號＝相簿順序）
 
 剩下的是執行項，不是待確認：建立 GitHub 遠端、部署上線、階段二辨識。

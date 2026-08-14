@@ -39,7 +39,11 @@ def upsert_player(conn, tag: str, user_id: int, info: dict) -> None:
     """綁定或更新村莊。已綁在別的 user 底下時拒絕，不搶帳號。"""
     existing = conn.execute("SELECT user_id FROM players WHERE tag = ?", (tag,)).fetchone()
     if existing and existing["user_id"] != user_id:
-        raise TagAlreadyBound(f"{tag} 已綁定在其他帳號")
+        # 只有「已登入 A 帳號、卻想加綁屬於 B 帳號的村莊」會走到這裡。
+        # 未登入的情況已經在 auth.verify_and_bind 被導向原本的帳號了。
+        raise TagAlreadyBound(
+            f"{tag} 已經綁在另一個帳號底下。請先登出，再直接用這個村莊的標籤登入。"
+        )
 
     ts = db.now()
     conn.execute(

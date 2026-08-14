@@ -78,7 +78,13 @@ async def verify_and_bind(conn, raw_tag: str, token: str, user_id: int | None) -
     info = await coc.get_player(tag)
 
     if user_id is None:
-        user_id = _create_user(conn)
+        # 未登入狀態下驗證成功。如果這個村莊已經綁過，就登入它原本所屬的帳號 ——
+        # 權杖驗證通過本身就是所有權的證明，用哪一個村莊登入都該進到同一個帳號。
+        # 不這樣做的話，用已綁定的小號登入會撞到 TagAlreadyBound，而且訊息會說
+        # 「已綁定在其他帳號」，但那其實是他自己的帳號，等於小號永遠登不進來。
+        existing = players.get_player(conn, tag)
+        user_id = existing["user_id"] if existing else _create_user(conn)
+
     players.upsert_player(conn, tag, user_id, info)
 
     return {"user_id": user_id, "tag": tag, "player": info}

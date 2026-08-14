@@ -73,3 +73,25 @@ async def test_別人已綁的村莊不會被搶走(conn, fake_coc):
     owner = await auth.verify_and_bind(conn, "#9QRUL2CVJ", "tok", None)
     with pytest.raises(TagAlreadyBound):
         await auth.verify_and_bind(conn, "#9QRUL2CVJ", "tok", owner["user_id"] + 999)
+
+
+async def test_用已綁定的小號登入會進到同一個帳號(conn, fake_coc):
+    """清空 cookie 後拿小號登入，要能回到主帳號，不能被當成別人的村莊擋掉。"""
+    fake_coc(verify_ok=True, player_exists=True)
+    main = await auth.verify_and_bind(conn, "#MAIN", "tok", None)
+    await auth.verify_and_bind(conn, "#ALT", "tok", main["user_id"])
+
+    again = await auth.verify_and_bind(conn, "#ALT", "tok", None)  # user_id=None ＝ 未登入
+    assert again["user_id"] == main["user_id"]
+    assert {p["tag"] for p in auth.players.players_of_user(conn, main["user_id"])} == {"#MAIN", "#ALT"}
+
+
+async def test_重複登入不會產生孤兒帳號(conn, fake_coc):
+    fake_coc(verify_ok=True, player_exists=True)
+    main = await auth.verify_and_bind(conn, "#MAIN", "tok", None)
+    await auth.verify_and_bind(conn, "#ALT", "tok", main["user_id"])
+
+    for tag in ("#MAIN", "#ALT", "#MAIN", "#ALT"):
+        await auth.verify_and_bind(conn, tag, "tok", None)
+
+    assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1

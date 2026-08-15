@@ -414,6 +414,19 @@ def badge_glyphs(img, box):
 
     group.sort(key=lambda p: p["x"])
 
+    # 領頭的必須是 `x`，而 `x` 實測永遠是正方形。這句是在守天使那張卡：
+    # 她的白髮從上方垂進 ROI，長出兩個又高又瘦的元件（10x35 與 20x33），
+    # 兩者剛好也互相對齊，於是自己湊成一組騙過了對齊分群。
+    # 實測 71 個判定有徽章的格子，70 個真徽章的 w/h 是 0.90~1.38
+    # （已含 iPad JPEG 與縮放到卡高 110px），天使那格是 0.29。
+    #
+    # 門檻放寬到 0.6~1.6 是刻意的：這道關卡誤殺的代價比誤放高很多。
+    # 真徽章被擋掉，count 會變成「1 張」靜默寫錯；誤放頂多是數字讀不出來
+    # 而標成認不出，交給人工。
+    lead = group[0]
+    if not (0.6 <= lead["w"] / lead["h"] <= 1.6):
+        return None
+
     as_tuple = [(p["x"], p["w"], p["h"], p["bitmap"]) for p in group]
     return as_tuple[0], as_tuple[1:]
 

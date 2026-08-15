@@ -28,6 +28,31 @@ async function api(path, opts = {}) {
   return body;
 }
 
+// 別人的庫存有多舊。配對是拿對方存下來的資料在算，三週沒更新的表算出來的
+// 結果不能當真 —— 這個標示就是讓人自己判斷要不要相信。
+// 用「日曆天」而不是「經過幾小時」：昨天晚上存的隔天早上看應該是「昨天」，
+// 不是「今天」。
+function sinceDays(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const then = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today - then) / 86400000);
+}
+
+function lastUpdated(iso) {
+  if (!iso) return "未知";
+  const n = sinceDays(iso);
+  if (n === null) return "未知";
+  if (n <= 0) return "今天";
+  if (n === 1) return "昨天";
+  return `${n} 天前`;
+}
+
+// 幾天算舊。配對結果會標出來，數字沒有精算過,是「一週沒動就該打折看待」。
+const STALE_DAYS = 7;
+
 const cardName = (id) => {
   const c = state.cardById[id];
   return c ? c.name_zh || c.name_en || id : id;
@@ -258,6 +283,11 @@ function renderMatch(m) {
     "）";
   card.append(sub);
 
+  const days = m.collection_updated_at ? sinceDays(m.collection_updated_at) : null;
+  const stale = days === null || days >= STALE_DAYS;
+  card.append(el("p", stale ? "hint stale" : "hint",
+    `庫存更新：${lastUpdated(m.collection_updated_at)}`));
+
   for (const s of m.series) card.append(renderSwap(s));
   return card;
 }
@@ -318,7 +348,7 @@ async function loadClan() {
   const table = el("table");
   const thead = el("thead");
   const hr = el("tr");
-  for (const h of ["玩家", "部落", "已收集"]) hr.append(el("th", null, h));
+  for (const h of ["玩家", "部落", "已收集", "庫存更新"]) hr.append(el("th", null, h));
   thead.append(hr);
   table.append(thead);
 
@@ -330,6 +360,11 @@ async function loadClan() {
     if (!p.same_clan) clan.style.color = "var(--warn)";
     tr.append(clan);
     tr.append(el("td", "num", p.has_data ? `${p.collected}/${p.total}` : "未建表"));
+
+    const days = p.collection_updated_at ? sinceDays(p.collection_updated_at) : null;
+    const upd = el("td", "num", p.has_data ? lastUpdated(p.collection_updated_at) : "—");
+    if (p.has_data && (days === null || days >= STALE_DAYS)) upd.classList.add("stale");
+    tr.append(upd);
     tbody.append(tr);
   }
   table.append(tbody);

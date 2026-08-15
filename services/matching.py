@@ -51,6 +51,7 @@ class Match:
     name: str
     clan_tag: str | None
     clan_name: str | None
+    collection_updated_at: str | None
     same_clan: bool
     kind: str
     series: list[SeriesMatch]
@@ -63,6 +64,7 @@ class Match:
             "name": self.name,
             "clan_tag": self.clan_tag,
             "clan_name": self.clan_name,
+            "collection_updated_at": self.collection_updated_at,
             "same_clan": self.same_clan,
             "kind": self.kind,
             "initiator": INITIATOR[self.kind],
@@ -230,6 +232,7 @@ def find_matches(
                 name=info.get("name") or tag,
                 clan_tag=info.get("clan_tag"),
                 clan_name=info.get("clan_name"),
+                collection_updated_at=info.get("collection_updated_at"),
                 same_clan=same_clan,
                 kind=kind,
                 series=series,

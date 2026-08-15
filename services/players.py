@@ -20,6 +20,7 @@ def _row_to_player(r) -> dict:
         "name": r["name"],
         "clan_tag": r["clan_tag"],
         "clan_name": r["clan_name"],
+        "collection_updated_at": r["collection_updated_at"],
     }
 
 
@@ -161,6 +162,11 @@ def save_collection(conn, tag: str, counts: dict[str, int]) -> dict[str, int]:
     conn.executemany(
         "INSERT INTO collections (tag, card_id, count) VALUES (?, ?, ?)",
         [(tag, c, n) for c, n in clean.items()],
+    )
+    # 全部歸零時上面一列都不會寫進去，所以時間戳不能靠 collections 的列 ——
+    # 那也是一次真實的更新，別人看到的「最後更新」該跟著動。
+    conn.execute(
+        "UPDATE players SET collection_updated_at = ? WHERE tag = ?", (db.now(), tag)
     )
     return clean
 

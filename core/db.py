@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS players (
   clan_synced_at  TEXT,
   verified_at     TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
-  sort_order      INTEGER NOT NULL DEFAULT 0
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  -- 這個人上次自己存收藏的時間。**放 players 不放 collections**：
+  -- save_collection 是整份刪掉重寫、而且只存 count > 0 的列，收藏被清空的人
+  -- 一列都不會留下，時間戳跟著一起消失。放在玩家身上才活得下來。
+  -- 跟上面的 updated_at 是兩回事 —— 那個是「我們什麼時候去 CoC API
+  -- 問過這個人的資料」，由部落同步整批寫入，不代表本人做了什麼。
+  collection_updated_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
 CREATE INDEX IF NOT EXISTS idx_players_clan ON players(clan_tag);
@@ -82,6 +88,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     ALTER TABLE，否則正式環境會停在舊 schema 上而本機看起來一切正常。
     """
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(players)")}
+    if "collection_updated_at" not in cols:
+        # 刻意不回填。既有玩家確實存過收藏，但我們不知道是什麼時候 ——
+        # 拿 updated_at 或 verified_at 來充數是在編造資料，畫面上顯示
+        # 「未知」才是誠實的，而且下次他一存就自己補上了。
+        conn.execute("ALTER TABLE players ADD COLUMN collection_updated_at TEXT")
     if "sort_order" not in cols:
         conn.execute("ALTER TABLE players ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
         # 依原本的 verified_at 順序回填，讓現有使用者看到的排列不會突然改變

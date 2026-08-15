@@ -85,6 +85,7 @@ async def clan_overview(
                 "collected": sum(1 for c in all_ids if counts.get(c, 0) > 0),
                 "total": total,
                 "has_data": bool(counts),
+                "collection_updated_at": info.get("collection_updated_at"),
             }
         )
     rows.sort(key=lambda r: (not r["same_clan"], -r["collected"], r["name"]))

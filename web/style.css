@@ -87,6 +87,9 @@ button.ghost { background: transparent; color: var(--dim); }
 .hint { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
 .error { color: var(--bad); font-size: 14px; margin: 10px 0 0; }
 .warn { color: var(--warn); font-size: 13px; }
+/* 太久沒更新的庫存。配對是拿對方的舊資料算出來的，標出來讓人自己判斷
+   要不要相信 —— 不擋、不隱藏，那是他的決定不是我們的。 */
+.stale { color: var(--warn); }
 .howto { margin: 4px 0 14px; color: var(--dim); font-size: 14px; }
 .howto summary { cursor: pointer; color: var(--accent); padding: 4px 0; }
 

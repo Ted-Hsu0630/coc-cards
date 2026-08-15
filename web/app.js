@@ -794,23 +794,40 @@ $("#importApply").addEventListener("click", async () => {
 
 /* ---------- 啟動 ---------- */
 
+/* 開頁時什麼都不要先畫。
+
+   以前是「先讓 HTML 把登入表單畫出來，等 /api/me 回來再跳走」，於是每次
+   開啟網頁都會閃一下登入框。而且四支 API 是一支一支等的，分頁列與收藏會
+   分好幾次才長出來，看起來又閃一次。
+
+   現在改成：畫面停在「載入中」，需要的東西全部並行拿完、整頁組好，
+   最後才一次顯示。 */
 async function boot() {
-  const meta = await api("/api/cards");
+  const [meta, me] = await Promise.all([api("/api/cards"), api("/api/me")]);
   state.cards = meta.cards;
   state.series = meta.series;
   state.maxCount = meta.max_count;
   state.cardById = Object.fromEntries(meta.cards.map((c) => [c.id, c]));
-
-  const me = await api("/api/me");
   state.me = me;
 
   if (!me.logged_in) {
     $("#topbar").hidden = true;
+    // 用 ?. —— boot() 不是只跑一次。登入成功、加綁村莊、切換村莊都會再呼叫
+    // 一次，那時「載入中」早就被移掉了，寫成 .remove() 會丟 TypeError。
+    // 而登入的呼叫包在 try/catch 裡，結果就是**登入成功卻顯示錯誤訊息、
+    // 停在登入頁**。
+    $("#booting")?.remove();
     show("login");
     return;
   }
 
-  $("#topbar").hidden = false;
+  // 沒裝 opencv 的伺服器不顯示截圖分頁 —— 顯示了按下去只會拿到 501。
+  // 舊版伺服器沒有這支 API，拿不到就當作沒有。
+  const [cap, coll] = await Promise.all([
+    api("/api/import/available").catch(() => null),
+    api("/api/collection"),
+  ]);
+
   const picker = $("#villagePicker");
   picker.textContent = "";
   for (const p of me.players) {
@@ -820,17 +837,18 @@ async function boot() {
     picker.append(o);
   }
 
-  // 沒裝 opencv 的伺服器不顯示這個分頁 —— 顯示了按下去只會拿到 501
-  try {
-    const cap = await api("/api/import/available");
+  if (cap) {
     $('.tabs button[data-view="import"]').hidden = !cap.available;
-    // 分頁在這支 API 回來之前是隱藏的，所以使用者不會看到空白的那一格
     $("#importMax").textContent = cap.max_images;
-  } catch {
-    /* 舊版伺服器沒有這支 API，維持隱藏就好 */
   }
 
-  await loadCollection();
+  state.counts = coll.counts || {};
+  state.dirty = false;
+  renderCollection();
+  markDirty();
+
+  $("#topbar").hidden = false;
+  $("#booting")?.remove();
   show("collection");
 }
 

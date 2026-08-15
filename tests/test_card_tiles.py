@@ -124,3 +124,15 @@ def test_排六欄():
     grid = css[css.index(".grid {") :]
     grid = grid[: grid.index("}")]
     assert re.search(r"grid-template-columns:\s*repeat\(6\s*,", grid), grid
+
+
+def test_boot_可以被呼叫第二次(app_js):
+    """boot() 不是只跑一次：登入成功、加綁村莊、切換村莊都會再呼叫一次。
+
+    「載入中」那塊在第一次就被移掉了，第二次寫成 `.remove()` 會對 null 呼叫，
+    丟 TypeError。而登入那次的呼叫包在 try/catch 裡 —— 結果是**登入其實成功了，
+    畫面卻顯示一行 JS 錯誤並停在登入頁**。實際踩過。
+    """
+    assert app_js.count("await boot()") > 1, "boot() 本來就會被呼叫多次，這條才有意義"
+    assert "$(\"#booting\").remove()" not in app_js, "第二次呼叫 boot() 會炸"
+    assert app_js.count('$("#booting")?.remove()') == 2

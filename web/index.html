@@ -39,17 +39,22 @@
 
 <main>
 
+  <!-- boot() 決定要顯示哪一頁之前，什麼都不要畫。這一段在 boot() 結尾移除。
+       以前 view-login 沒有 hidden，於是每次開啟網頁都會先閃一下登入表單，
+       等 /api/me 回來才跳走。 -->
+  <div id="booting" class="card"><p class="hint">載入中…</p></div>
+
   <!-- 登入 -->
-  <section id="view-login" class="view">
+  <section id="view-login" class="view" hidden>
     <div class="card intro">
       <h1>卡牌衝突 換卡配對</h1>
-      <p>登記缺什麼、多什麼，自動算出跟誰換、換哪張。</p>
+      <p>輸入卡牌庫存 自動配對換卡策略</p>
     </div>
 
     <form id="loginForm" class="card">
       <h2>驗證村莊</h2>
       <label>村莊標籤
-        <input id="tagInput" name="tag" placeholder="#XXXXXXXXX" autocapitalize="characters"
+        <input id="tagInput" name="tag" placeholder="標籤" autocapitalize="characters"
                autocomplete="off" spellcheck="false" required>
       </label>
       <label>遊戲內 API 權杖

@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>卡牌衝突 換卡配對</title>
 <link rel="stylesheet" href="/static/style.css">
+
+<!-- 加到主畫面後全螢幕開啟（display: standalone）。沒有 Service Worker，
+     所以 Android Chrome 不會主動跳安裝橫幅，要從選單「加到主畫面」。
+     這站離線等於沒用，為了那個橫幅去養一份快取不划算。 -->
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="theme-color" content="#1e222c">
+<link rel="icon" href="/static/img/favicon-32.png" sizes="32x32">
+<!-- iOS 16.4 以前不看 manifest，這兩行是給舊版的。狀態列用 black 不用
+     black-translucent —— 後者會讓內容鑽到狀態列底下，而登入畫面沒有頂欄
+     可以吃 safe-area，標題會直接被時鐘壓到。 -->
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="換卡配對">
 </head>
 <body>
 

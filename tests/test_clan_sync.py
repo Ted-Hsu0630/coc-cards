@@ -8,6 +8,7 @@
 的東西 —— 全部改回逐人查，測試如果只看資料正確性會全部通過。
 """
 
+import asyncio
 import datetime as dt
 
 import pytest
@@ -164,3 +165,43 @@ async def test_快取沒過期就一次都不打(conn, monkeypatch):
 
     assert await players.sync_clans(conn) == 0
     assert spy.clan_calls == [] and spy.player_calls == []
+
+
+# ── 背景排程 ───────────────────────────────────────────────────────
+
+
+async def test_背景同步失敗不會讓迴圈停掉(monkeypatch):
+    """停掉的話就再也沒有背景更新，而且沒有任何跡象 —— 頁面只會慢慢變舊，
+    使用者也不會發現自己又開始在請求裡等了。
+    """
+    import app_factory
+
+    monkeypatch.setattr(config, "CLAN_REFRESH_SECONDS", 0.01)
+    calls = []
+
+    async def boom(conn):
+        calls.append(1)
+        raise RuntimeError("CoC API 掛了")
+
+    monkeypatch.setattr(players, "sync_clans", boom)
+
+    task = asyncio.create_task(app_factory._refresh_clans_forever())
+    await asyncio.sleep(0.08)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert len(calls) >= 2, f"第一次失敗之後就沒有再跑了（只跑了 {len(calls)} 次）"
+
+
+async def test_設成零就完全不啟動(monkeypatch):
+    """留一個關得掉的開關：測試環境與本機開發不需要一直打外部 API。"""
+    import app_factory
+
+    monkeypatch.setattr(config, "CLAN_REFRESH_SECONDS", 0)
+
+    async def boom(conn):
+        raise AssertionError("不該被呼叫")
+
+    monkeypatch.setattr(players, "sync_clans", boom)
+    await asyncio.wait_for(app_factory._refresh_clans_forever(), timeout=1)

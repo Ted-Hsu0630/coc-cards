@@ -37,6 +37,12 @@ CLAN_CACHE_SECONDS = 600
 # 同時打 CoC API 的上限。實測並發 10 就把 50 人從 12.8s 壓到 1.9s，
 # 並發 30 只多快 0.5s —— 不值得去壓官方 API。
 COC_CONCURRENCY = 10
+
+# 背景重新整理部落資訊的間隔。設 0 可以整個關掉（測試就是這樣）。
+# 取快取壽命的一半：使用者永遠不會等到 sync_clans，因為排程總是搶在過期之前
+# 把資料換新。真正撐住正確性的仍然是 CLAN_CACHE_SECONDS —— 排程只是提前跑，
+# 沒跑成功的話路由裡那道同步呼叫還是會補上（只是使用者要等一下）。
+CLAN_REFRESH_SECONDS = int(os.environ.get("CLAN_REFRESH_SECONDS", CLAN_CACHE_SECONDS // 2))
 COC_TIMEOUT = 20.0
 
 # 每張卡的持有數上限（UI 下拉選單範圍 0..MAX_COUNT）

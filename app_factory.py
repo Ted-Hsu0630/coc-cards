@@ -1,5 +1,7 @@
 """FastAPI 應用組裝。"""
 
+import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -12,7 +14,7 @@ from core.http_utils import RevalidatedStaticFiles, no_cache_page
 from routers import auth, collection, matches
 from routers import importer as import_router
 from services import auth as auth_service
-from services import coc
+from services import coc, players
 from services import importer as importer_service
 
 # 這個站的 API 除了截圖上傳以外都很小 —— 最大的 `PUT /api/collection` 也只是
@@ -46,8 +48,38 @@ async def lifespan(app: FastAPI):
         log.info("清掉 %d 個過期 session", removed)
 
     await coc.startup()
+    refresher = asyncio.create_task(_refresh_clans_forever())
     yield
+    refresher.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await refresher
     await coc.shutdown()
+
+
+async def _refresh_clans_forever() -> None:
+    """在背景把部落資訊換新，不要讓使用者在請求裡等。
+
+    以前同步是掛在 `/api/matches` 與 `/api/clan/overview` 裡的：快取一過期，
+    下一個開頁面的人就要獨自等完整趟 CoC API（正式機實測 886ms，而且所有玩家
+    共用同一個時間戳，等於每 10 分鐘固定有一個人被抓去付帳）。
+
+    先睡再跑，理由有二：剛啟動時資料通常還新，而且測試的 TestClient 會觸發
+    lifespan —— 間隔是分鐘級，測試跑幾秒鐘根本不會碰到這裡。
+    路由裡那道呼叫刻意保留：這個迴圈死掉時它就是備援，只是使用者要等一下。
+    """
+    if config.CLAN_REFRESH_SECONDS <= 0:
+        return
+    while True:
+        await asyncio.sleep(config.CLAN_REFRESH_SECONDS)
+        try:
+            with db.session() as conn:
+                await players.sync_clans(conn)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # 這裡炸掉不可以讓迴圈停掉 —— 停了就再也沒有背景更新，
+            # 而且沒有任何跡象（頁面只會慢慢變舊）。
+            log.exception("背景部落同步失敗，下一輪再試")
 
 
 def create_app() -> FastAPI:

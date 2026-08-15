@@ -14,6 +14,7 @@ const state = {
   series: [],
   maxCount: 10,
   counts: {},
+  saved: {}, // 伺服器上那一份，「取消」要回到這裡
   dirty: false,
   me: null,
 };
@@ -175,7 +176,10 @@ function cardTile(card, { value, allowUnset = false, note = null, noteClass = ""
   };
 
   tile.addEventListener("click", () => {
-    v = v === null || v === undefined ? 1 : Math.min(v + 1, state.maxCount);
+    // 未填的第一下是 0 不是 1。「認不出」跟「我看過了，這張是 0 張」都是
+    // 常見的結果，跳過 0 會逼人多按九下才回得來（min 是 0，減不到 -1）。
+    const unset = v === null || v === undefined;
+    v = unset ? (allowUnset ? 0 : 1) : Math.min(v + 1, state.maxCount);
     paint();
     onChange(v);
   });
@@ -223,22 +227,54 @@ function renderCollection() {
   updateProgress();
 }
 
+/* 進度條。
+
+   **只建一次，之後改寬度不重建。** 每次都重畫的話 CSS transition 沒有舊值
+   可以補間，動畫就完全不會發生 —— 收到一張新卡時進度只會瞬間跳過去。
+   原本的膠囊排版在手機上會斷成兩行且左右對不齊，改成固定寬度的標籤加一條
+   等寬的軌道，幾個系列的條就一定對得齊。 */
+const bars = new Map();
+
+function buildProgress() {
+  const box = $("#seriesProgress");
+  box.textContent = "";
+  bars.clear();
+  const rows = [...state.series.map((s) => [s.key, s.name_zh]), ["total", "全部"]];
+  for (const [key, label] of rows) {
+    const row = el("div", `bar-row ${key}`);
+    const track = el("div", "bar-track");
+    const fill = el("div", "bar-fill");
+    const text = el("span", "bar-text");
+    track.append(fill, text);
+    row.append(el("span", "bar-label", label), track);
+    box.append(row);
+    bars.set(key, { fill, text });
+  }
+}
+
 function updateProgress() {
-  const row = $("#seriesProgress");
-  row.textContent = "";
+  if (!bars.size) buildProgress();
+  const count = (list) => list.filter((c) => (state.counts[c.id] || 0) > 0).length;
   for (const s of state.series) {
     const ids = state.cards.filter((c) => c.series === s.key);
-    const have = ids.filter((c) => (state.counts[c.id] || 0) > 0).length;
-    row.append(el("div", `pill ${s.key}`, `${s.name_zh} ${have}/${ids.length}`));
+    setBar(s.key, count(ids), ids.length);
   }
-  const total = state.cards.length;
-  const have = state.cards.filter((c) => (state.counts[c.id] || 0) > 0).length;
-  row.append(el("div", "pill total", `共 ${have}/${total}`));
+  setBar("total", count(state.cards), state.cards.length);
+}
+
+function setBar(key, have, total) {
+  const b = bars.get(key);
+  if (!b) return;
+  b.fill.style.width = total ? `${(have / total) * 100}%` : "0%";
+  b.text.textContent = `${have}/${total}`;
 }
 
 function markDirty() {
   $("#saveState").textContent = state.dirty ? "尚未儲存" : "已儲存";
   $("#saveBtn").disabled = !state.dirty;
+  // 沒改過就沒東西好取消，按鈕直接不出現而不是變灰 —— 少一顆按鈕比多一顆
+  // 按不動的按鈕乾淨。
+  $("#revertBtn").hidden = !state.dirty;
 }
 
 $("#saveBtn").addEventListener("click", async () => {
@@ -246,6 +282,7 @@ $("#saveBtn").addEventListener("click", async () => {
   $("#saveState").textContent = "儲存中…";
   try {
     await api("/api/collection", { method: "PUT", body: JSON.stringify({ counts: state.counts }) });
+    state.saved = { ...state.counts }; // 存成功之後，「取消」的目標就是這一份
     state.dirty = false;
     markDirty();
     $("#saveState").textContent = "已儲存";
@@ -255,6 +292,16 @@ $("#saveBtn").addEventListener("click", async () => {
   }
 });
 
+// 回到伺服器上那一份。不重新發請求 —— 上次載到的東西就是原始資料，
+// 而且斷線時「取消」還是該有用。
+$("#revertBtn").addEventListener("click", () => {
+  state.counts = { ...state.saved };
+  state.dirty = false;
+  renderCollection();
+  markDirty();
+  $("#saveState").textContent = "已還原";
+});
+
 window.addEventListener("beforeunload", (e) => {
   if (state.dirty) e.preventDefault();
 });
@@ -262,6 +309,7 @@ window.addEventListener("beforeunload", (e) => {
 async function loadCollection() {
   const data = await api("/api/collection");
   state.counts = data.counts || {};
+  state.saved = { ...state.counts };
   state.dirty = false;
   renderCollection();
   markDirty();
@@ -295,8 +343,8 @@ async function loadMatches() {
   if (!data.matches.length) {
     body.append(
       el("div", "empty", data.total_players <= 1
-        ? "還沒有其他人建表。把網址分享給部落成員。"
-        : "目前沒有可成立的交換。")
+        ? "還沒有其他玩家資料"
+        : "目前沒有可成立的交換")
     );
     return;
   }
@@ -322,7 +370,7 @@ function renderMatch(m) {
   const sub = el("p", "hint");
   sub.textContent =
     `${m.clan_name || "無部落"}　${INITIATOR_LABEL[m.initiator]}　` +
-    `這一組最多換 ${m.trades} 次` +
+    `最多換 ${m.trades} 次` +
     (m.gain ? `（補你 ${m.gain} 張` : "（") +
     (m.help ? `${m.gain ? "、" : ""}補對方 ${m.help} 張` : "") +
     "）";
@@ -357,8 +405,8 @@ function renderSwap(s) {
   // 單向交換時清單是按張數展開的（同一張多份會重複），備選要去重才不會洗版
   const restGive = [...new Set(s.i_give.slice(s.trades))];
   const restGet = [...new Set(s.i_get.slice(s.trades))];
-  if (restGive.length) box.append(altRow("送出可改用", restGive, "give"));
-  if (restGet.length) box.append(altRow("收到可改挑", restGet, "get"));
+  if (restGive.length) box.append(altRow("可改送", restGive, "give"));
+  if (restGet.length) box.append(altRow("可改收", restGet, "get"));
   return box;
 }
 
@@ -392,7 +440,7 @@ async function loadClan() {
   const thead = el("thead");
   const hr = el("tr");
   // 欄位的 class 要跟底下的 td 一致，否則對齊與欄寬只作用在資料列，表頭會歪掉。
-  for (const [label, cls] of [["玩家", null], ["部落", null], ["已收集", "num"], ["庫存更新", "when"]]) {
+  for (const [label, cls] of [["玩家", "who"], ["部落", null], ["已收集", "num"], ["庫存更新", "when"]]) {
     hr.append(el("th", cls, label));
   }
   thead.append(hr);
@@ -401,7 +449,7 @@ async function loadClan() {
   const tbody = el("tbody");
   for (const p of data.players) {
     const tr = el("tr");
-    tr.append(el("td", null, p.name));
+    tr.append(el("td", "who", p.name));
     const clan = el("td", null, p.clan_name || "無部落");
     if (!p.same_clan) clan.style.color = "var(--warn)";
     tr.append(clan);
@@ -432,7 +480,9 @@ function renderVillages() {
 
   if (many) {
     const tip = el("div", "card");
-    tip.append(el("p", "hint", "拖曳左側握把可調整順序。"));
+    // 一定要寫「握把」：拖曳只綁在 .grip 上（見底下的 pointerdown），
+    // 拖卡片本體不會有任何反應。
+    tip.append(el("p", "hint", "拖曳握把可調整順序"));
     list.append(tip);
   }
 
@@ -557,7 +607,7 @@ $("#addForm").addEventListener("submit", async (e) => {
     $("#addToken").value = "";
     if (r.migrated) {
       // 這個村莊本來是獨立帳號，剛剛被併進來。收藏是照 tag 存的，所以原封不動。
-      alert(`已將「${r.player.name}」併入此帳號，收藏保留。`);
+      alert(`已連結「${r.player.name}」`);
     }
     await boot();
     show("collection");
@@ -576,10 +626,10 @@ $("#addForm").addEventListener("submit", async (e) => {
 const imp = { rows: [], picks: {} };
 
 const IMPORT_STATE = {
-  read: { label: "讀出來了", cls: "ok" },
-  unknown: { label: "認不出", cls: "warn" },
-  conflict: { label: "兩張截圖不一致", cls: "bad" },
-  uncovered: { label: "沒拍到", cls: "dim" },
+  read: { label: "辨識成功", cls: "ok" },
+  unknown: { label: "辨識失敗", cls: "warn" },
+  conflict: { label: "截圖資料不一致", cls: "bad" },
+  uncovered: { label: "缺少資料", cls: "dim" },
 };
 
 // 這格最後會寫進去的值。使用者沒選就沿用資料庫現值 ——
@@ -626,7 +676,7 @@ function renderImport(data) {
   for (const f of data.files) {
     const li = el("li", f.ok ? "ok" : "bad");
     if (f.ok) {
-      const exact = f.exact ? "" : "（位置較不確定，建議核對）";
+      const exact = f.exact ? "" : "（位置信心度較低，建議核對）";
       li.textContent = `${f.name} —— 相簿第 ${f.range[0]}~${f.range[1]} 張${exact}`;
     } else {
       li.textContent = `${f.name} —— 不採用：${f.reason}`;
@@ -646,16 +696,19 @@ function redrawImport() {
 
   const sum = $("#importSummary");
   sum.textContent = "";
-  sum.append(el("h2", null, `60 張裡讀出 ${s.read} 張`));
+  sum.append(el("h2", null, `辨識成功 ${s.read} / 60`));
   if (left > 0) {
-    sum.append(el("p", "warn", `還有 ${left} 張沒有值，將保持原樣。`));
+    // 不要寫「辨識失敗」—— left 是 unknown + conflict + uncovered 的總和，
+    // 而「辨識失敗」同時又是 unknown 這一個狀態的名字。同一個詞當統稱又當
+    // 專名，下面那行的分項數字就會跟這裡對不起來。
+    sum.append(el("p", "warn", `${left} 張沒有值 將保持原樣`));
   } else {
-    sum.append(el("p", "hint", "全部都有值了。"));
+    sum.append(el("p", "hint", "全部卡片辨識成功"));
   }
   const brk = [];
-  if (s.unknown) brk.push(`認不出 ${s.unknown}`);
-  if (s.conflict) brk.push(`兩張截圖不一致 ${s.conflict}`);
-  if (s.uncovered) brk.push(`沒拍到 ${s.uncovered}`);
+  if (s.unknown) brk.push(`辨識失敗 ${s.unknown}`);
+  if (s.conflict) brk.push(`截圖資料不一致 ${s.conflict}`);
+  if (s.uncovered) brk.push(`缺少資料 ${s.uncovered}`);
   if (brk.length) sum.append(el("p", "hint", brk.join("　·　")));
 
   // 跟遊戲內進度條核對 —— 有格子沒讀到就報不出可比的數字，這時說清楚為什麼
@@ -667,11 +720,11 @@ function redrawImport() {
   const bad = compared.filter((g) => g.owned !== g.expected);
 
   if (compared.length && !bad.length) {
-    chk.append(el("p", "ok-note", `已與進度條核對 ${compared.length} 個系列，數字相符。`));
+    chk.append(el("p", "ok-note", `已與進度條核對 ${compared.length} 個系列相符`));
   } else if (bad.length) {
     chk.append(el("p", "error", "與進度條不符，請逐格檢查："));
   } else {
-    chk.append(el("p", "hint", "各系列已擁有張數（進度條讀不到，無法自動核對）："));
+    chk.append(el("p", "hint", "各系列已擁有張數（進度條讀取失敗，無法自動核對）："));
   }
 
   for (const g of groups) {
@@ -683,7 +736,7 @@ function redrawImport() {
       text = `${g.name} 畫面上是 ${g.expected}/${g.total}（還有 ${g.missing} 格沒讀到）`;
       cls = "faded";
     } else if (g.expected === null) {
-      text = `${g.name} ${g.owned}/${g.total}（進度條讀不到，沒得核對）`;
+      text = `${g.name} ${g.owned}/${g.total}（進度條讀取失敗，無法自動核對）`;
       cls = "faded";
     } else if (g.owned === g.expected) {
       text = `${g.name} ${g.owned}/${g.total} ✓`;
@@ -843,6 +896,7 @@ async function boot() {
   }
 
   state.counts = coll.counts || {};
+  state.saved = { ...state.counts };
   state.dirty = false;
   renderCollection();
   markDirty();

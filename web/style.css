@@ -69,6 +69,9 @@ main { max-width: 900px; margin: 0 auto; padding: 12px; }
 .intro p { color: var(--dim); margin: 0; }
 
 label { display: block; margin-bottom: 10px; font-size: 14px; color: var(--dim); }
+/* 說明文字跟緊接在後的欄位標籤同色同大小，中間又沒有任何間距（.hint 沒有
+   下邊距、label 沒有上邊距），兩行會黏成一段讀不出斷點。 */
+.hint + label { margin-top: 14px; }
 input, select {
   width: 100%; margin-top: 4px;
   background: var(--panel-2); color: var(--text);
@@ -84,7 +87,23 @@ button.primary { background: var(--accent); color: #1a1a1a; border-color: var(--
 button.primary:disabled { opacity: .5; cursor: default; }
 button.ghost { background: transparent; color: var(--dim); }
 
+/* 檔案選擇器。不管的話，外框是我們的深色、裡面那顆「選擇檔案」卻是瀏覽器
+   自己的淺灰按鈕，在深色介面上非常突兀。::file-selector-button 是唯一能
+   碰到它的方式（元素本身的 background/color 動不到那顆鈕）。 */
+input[type="file"] { padding: 8px; font-size: 14px; }
+input[type="file"]::file-selector-button {
+  margin: 0 10px 0 0;
+  padding: 7px 12px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-2); color: var(--text);
+  font: inherit; cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--line); }
+
 .hint { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
+/* 那 6px 是用來跟上一段拉開距離的；當它是卡片裡的第一個元素時上面沒有東西
+   可以拉開，只會讓文字在卡片裡偏下（上 21px、下 15px）。 */
+.card > .hint:first-child { margin-top: 0; }
 .error { color: var(--bad); font-size: 14px; margin: 10px 0 0; }
 .warn { color: var(--warn); font-size: 13px; }
 /* 太久沒更新的庫存。配對是拿對方的舊資料算出來的，標出來讓人自己判斷
@@ -118,36 +137,86 @@ code {
 .switch input { width: auto; margin: 0; }
 
 /* --- 收藏表 --- */
-.sticky-summary { position: sticky; top: 96px; z-index: 10; }
-.progress-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.pill {
-  flex: 1 1 auto; text-align: center;
-  border-radius: 8px; padding: 6px 8px;
-  font-size: 13px; font-weight: 600; color: #12141a;
+/* 這一塊**不要**釘在畫面上。原本是 sticky，往下捲時它會一直蓋住卡片，
+   而手機上它有近 300px 高 —— 為了一顆偶爾才按一次的儲存鈕，永遠犧牲三分之一
+   的畫面。要存就捲回最上面。（頂欄的分頁列仍然是 sticky，那個常用。） */
+.summary .tip { margin: 0 0 12px; }
+
+/* 進度條，照遊戲內的樣子：系列色的圓角牌子，名字在上、深色軌道在下，
+   張數壓在軌道正中央。
+
+   排成格子而不是一條一條堆疊 —— 五條橫跨整張卡的細線在桌機上又長又空。
+   auto-fit 讓手機排 2 欄、桌機四個系列擠成一排，而且每格等寬，
+   不會像原本的膠囊那樣各自為政。 */
+.bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
 }
-.pill.total { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-.pill.elixir { background: var(--elixir); }
-.pill.dark { background: var(--dark); }
-.pill.builder { background: var(--builder); }
-.pill.super { background: var(--super); }
+/* 底色一律是面板色，系列色只出現在**填色與標籤**上。
+   整塊塗成系列色的話，深色介面上會突然多出四大塊高彩度的色塊，很吵；
+   只讓進度本身帶顏色，一樣分得出是哪個系列。 */
+.bar-row {
+  border-radius: 10px; padding: 6px 8px 7px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.bar-row.total { grid-column: 1 / -1; }   /* 總計橫跨整排，當作底下的總結 */
+
+.bar-label {
+  display: block; text-align: center; margin-bottom: 5px;
+  font-size: 12px; font-weight: 600; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-track {
+  position: relative; height: 16px; border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.bar-fill {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0; border-radius: 999px;
+  opacity: .8;
+  /* 收到新卡時條子滑過去，不是瞬間跳。要成立的前提是 updateProgress()
+     改寬度而不是重建元素 —— 重建的話沒有舊值可以補間。 */
+  transition: width .35s cubic-bezier(.4, 0, .2, 1);
+}
+.bar-text {
+  position: relative;      /* 疊在 fill 上面 */
+  display: block; text-align: center; line-height: 16px;
+  font-size: 11px; font-weight: 600; color: var(--text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+}
+/* 每個系列只設一個變數，填色與標籤都讀它 —— 標籤也要帶顏色，因為 0% 的
+   時候條子上根本看不到顏色，只剩標籤在指認是哪個系列。 */
+.bar-row.elixir { --tint: var(--elixir); }
+.bar-row.dark { --tint: var(--dark); }
+.bar-row.builder { --tint: var(--builder); }
+.bar-row.super { --tint: var(--super); }
+.bar-row.total { --tint: var(--accent); }
+.bar-fill { background: var(--tint, var(--dim)); }
+.bar-label { color: var(--tint, var(--dim)); }
 
 .save-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-.save-row .hint { margin: 0; }
+/* 「取消」跟「儲存」黏在一起，狀態字靠左推開 */
+.save-row .hint { margin: 0 auto 0 0; }
 
 .series-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; }
 
 /* --- 卡片格子 --- */
 
-/* 固定 6 欄，照遊戲內相簿的排法。375px 的手機扣掉 main 與 card 的內距後
-   每格約 49px，所以名字只能用 10px 兩行 —— 12px 只塞得下 4 個字，而有 15 張
-   卡是 5 字以上（「超級巨石投手」「飛龍寶寶（夜）」）。 */
+/* 欄數跟著寬度走，不寫死。每格最小 72px：375px 的手機扣掉 main 與 card 的
+   內距後排得下 4 欄（每格約 76px），平板 8～9 欄，桌機 11 欄。
+   寫死 6 欄的話手機每格只剩 49px，圖太小、名字也塞不下。 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 6px;
 }
-.slot { position: relative; }
+
+/* 讓 .dec 的大小可以用 cqw（格子寬度的百分比）來寫。格子在高解析度下會
+   長到 130px 以上，減號如果是固定 18px 就會小得按不到。 */
+.slot { position: relative; container-type: inline-size; }
 
 .tile {
   /* 徽章要靠這個定位。少了它會往上找到 .slot，而 .slot 包含名字，
@@ -163,6 +232,12 @@ code {
   border-radius: 8px;
   background: var(--panel-2);
   cursor: pointer;
+  /* 連點加數量時，瀏覽器預設會等一下看是不是雙擊（要放大），於是每一下都
+     慢半拍，連點還會真的把畫面放大。manipulation 等於宣告這裡不吃雙擊縮放，
+     點下去就立刻算數。維持在格子上而不是整頁 —— 其他地方還是可以雙指縮放。 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
@@ -183,24 +258,32 @@ code {
 /* 1 張不顯示數字（有邊框顏色就夠了），2 張以上才標 —— 跟遊戲內一樣，
    而「多出來的可以送人」正是這個站在算的東西。 */
 .dupe {
-  position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%);
   background: var(--accent); color: #241d08;
-  font-size: 10px; font-weight: 700; line-height: 1.5;
-  padding: 0 5px; border-radius: 999px;
+  font-size: clamp(10px, 18cqw, 18px); font-weight: 700; line-height: 1.5;
+  padding: 0 .45em; border-radius: 999px;
   pointer-events: none;
 }
 .dupe:empty { display: none; }
 
-/* 參考站的格子有 72px，減號 22px；我們只有 49px，照抄 22px 會蓋掉大半張臉。
-   18px 配 -4px 的位移，比例才跟那邊差不多，而且不會伸進隔壁的格子
-   （欄距 6px）。 */
+/* 大小跟著格子走。cqw 是格子寬度的 1%，所以 30cqw 永遠是格子的 30%
+   （參考站是 72px 配 22px，比例一樣）。固定 px 的話，手機剛剛好、桌機的
+   130px 大圖配 18px 就變成一個按不太到的小點。
+   clamp 兩端各留一道：太小按不到，太大會蓋掉半張臉。 */
 .dec {
-  position: absolute; top: -4px; right: -4px;
-  width: 18px; height: 18px; padding: 0; margin: 0;
+  position: absolute; top: -3cqw; right: -3cqw;
+  width: clamp(18px, 30cqw, 34px);
+  height: clamp(18px, 30cqw, 34px);
+  padding: 0; margin: 0;
   border: 0; border-radius: 50%;
   background: var(--bad); color: #fff;
-  font-size: 14px; line-height: 18px; text-align: center;
+  font-size: clamp(13px, 22cqw, 24px);
+  line-height: clamp(18px, 30cqw, 34px);
+  text-align: center;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .dec[hidden] { display: none; }
 
@@ -272,9 +355,27 @@ th { color: var(--dim); font-weight: 500; font-size: 13px; }
 
    這兩欄要一起加 nowrap：只給時間欄的話，被搶走寬度的換成「已收集」，
    表頭會變成「已收／集」兩行。 */
-th.num, td.num, th.when, td.when { white-space: nowrap; width: 1%; }
-th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-th.when, td.when { text-align: left; }
+/* 四欄一律靠左。「已收集」原本靠右，而右邊緊接著靠左的「庫存更新」，
+   兩欄的字就會擠在交界上 —— 那正是平板上看起來黏成一團的原因。
+   數字仍然用等寬字模，上下還是對得齊。 */
+th.num, td.num { font-variant-numeric: tabular-nums; }
+/* 這兩欄的內容不可以折行（「35 分鐘 / 前」「已收 / 集」都出現過），
+   寬度在下面用百分比給。 */
+th.num, td.num, th.when, td.when { white-space: nowrap; }
+
+/* 四欄照比例分，不設斷點。
+
+   先前是「玩家欄 width: 100%」，意思是剩下的寬度全算它的 —— 於是玩家欄空
+   一大片，而「部落」被壓到最小寬度，《天堂》斷成兩行。後來想用斷點補救，
+   但視窗寬度落在斷點以下（例如 508px）就完全沒生效，問題原封不動。
+
+   百分比在 `table-layout: auto` 底下只是建議值：欄位不會窄過 min-content，
+   所以窄螢幕上瀏覽器會自己把「已收集」「庫存更新」撐回夠用的寬度，再從
+   玩家欄扣。名字換行是可以接受的，欄位比例失衡不行。 */
+th.who, td.who { width: 30%; }
+#clanBody th:nth-child(2), #clanBody td:nth-child(2) { width: 24%; }
+th.num, td.num { width: 18%; }
+th.when, td.when { width: 28%; }
 
 .empty { color: var(--dim); text-align: center; padding: 28px 12px; }
 

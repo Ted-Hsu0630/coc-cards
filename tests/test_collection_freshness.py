@@ -127,16 +127,16 @@ def test_舊資料庫升級後欄位存在且不被回填(tmp_path, monkeypatch)
     assert r["updated_at"] == "2026-08-01T00:00:00+00:00", "既有資料被動到了"
 
 
-def test_部落總覽的庫存更新欄靠左而且不折行():
+def test_部落總覽四欄一律靠左而且不折行():
     """「26 分鐘前」是文字不是數字。
 
-    一開始沿用了數字欄的 `num` class，結果整欄靠右，跟旁邊三欄不一致；
-    而且表格是 auto layout，長名字（「楓葉荻花秋瑟瑟@_@」）會把玩家欄撐開，
-    把這一欄擠到「26 分鐘 / 前」兩行。
+    一開始沿用了數字欄的 `num` class，結果整欄靠右。而右邊靠右、左邊靠左的
+    兩欄會把字擠在交界上，看起來就是黏成一團 —— 所以連「已收集」也不靠右，
+    四欄一致靠左（用 th, td 的預設值），數字改用等寬字模來對齊。
 
-    `width: 1%` 配 `nowrap` 是縮到剛好容納內容的老招。**兩個窄欄都要加** ——
-    只加時間欄的話，被搶走寬度的換成「已收集」，表頭會斷成「已收／集」
-    （這正是第一版改完踩到的）。
+    這兩欄一定要 `nowrap`：實際踩過「35 分鐘 / 前」跟表頭「已收 / 集」兩次。
+    寬度則是四欄一起用百分比分配 —— 讓某一欄去吃掉所有剩餘寬度（width: 100%）
+    的話，其他欄會被壓到最小寬度，《天堂》就斷成兩行。
     """
     js = (config.BASE_DIR / "web" / "app.js").read_text(encoding="utf-8")
     css = _css_declarations((config.BASE_DIR / "web" / "style.css").read_text(encoding="utf-8"))
@@ -146,8 +146,18 @@ def test_部落總覽的庫存更新欄靠左而且不折行():
     for sel in ("td.when", "th.when", "td.num", "th.num"):
         assert sel in css, f"style.css 少了 {sel}"
         assert "nowrap" in css[sel], f"{sel} 少了 nowrap，內容會被折行"
-        assert "width: 1%" in css[sel], f"{sel} 少了 width: 1%，欄寬會被長名字搶走"
-    assert "text-align: left" in css["td.when"], "時間被靠右了，跟其他欄不一致"
+        assert "text-align" not in css[sel], f"{sel} 又自己指定對齊，四欄就不一致了"
+
+    # 四欄都要有分到寬度，而且沒有人吃掉全部
+    widths = {}
+    for sel in ("td.who", "td.num", "td.when"):
+        m = re.findall(r"width:\s*(\d+)%", css[sel])
+        assert m, f"{sel} 沒有分配寬度"
+        widths[sel] = int(m[-1])
+    assert max(widths.values()) < 100, f"有人把剩餘寬度全吃掉了：{widths}"
+    assert sum(widths.values()) < 100, f"四欄加起來超過 100%：{widths}"
+    # _css_declarations 會把 `th, td` 拆成兩個鍵
+    assert "text-align: left" in css["td"], "表格的預設對齊不是靠左"
 
 
 @pytest.fixture

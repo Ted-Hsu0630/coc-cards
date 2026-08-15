@@ -65,6 +65,10 @@
     整批解碼後的點陣圖，8 × 72MB = 576MB 是這台 7GB 機器（還要跟 NVR 共用）
     的預算。改任一邊都要重算，`tests/test_limits.py` 守著那道乘法。
 
+13. **限流取來源 IP 只認 `X-Real-IP`，不可以改用 `X-Forwarded-For`**。
+    反向代理是「附加」而非覆寫 XFF，最左邊那一段是客戶端自己填的，
+    拿它當 key 等於每次請求換一個假 IP 就能繞過限流。
+
 ## 卡表
 
 `assets/cards.json`。名字有 `confirmed` 欄位，`false` 代表還沒跟遊戲畫面核對過，

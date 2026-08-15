@@ -2,14 +2,17 @@
 
 import sqlite3
 
-from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 import config
 from routers.deps import get_conn, optional_session, require_session
-from services import auth, coc, players
+from services import auth, coc, players, ratelimit
 
 router = APIRouter(prefix="/api", tags=["auth"])
+
+# 只有 verify 需要 —— 其餘端點不會打 CoC API，也就沒有配額可燒。
+verify_limiter = ratelimit.RateLimiter()
 
 
 class VerifyIn(BaseModel):
@@ -20,11 +23,22 @@ class VerifyIn(BaseModel):
 @router.post("/players/verify")
 async def verify(
     body: VerifyIn,
+    request: Request,
     response: Response,
     conn: sqlite3.Connection = Depends(get_conn),
     sess: dict | None = Depends(optional_session),
 ):
     """驗證遊戲內權杖。已登入時視為加綁小號，未登入時建立新帳號。"""
+    # 計數要在打 CoC API **之前**：限流保護的就是那把 key 的配額，
+    # 放到後面等於每次被限流之前都已經先把成本付掉了（見 ratelimit.py）。
+    allowed, retry_after = verify_limiter.hit(ratelimit.client_ip(request))
+    if not allowed:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"驗證太頻繁，請等 {retry_after} 秒再試",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user_id = sess["user_id"] if sess else None
     try:
         result = await auth.verify_and_bind(conn, body.tag, body.token, user_id)

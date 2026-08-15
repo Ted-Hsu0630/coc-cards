@@ -1,4 +1,12 @@
-"""所有測試共用的前置。"""
+"""所有測試共用的前置。
+
+`routers.auth.verify_limiter` 是模組層級的單例，狀態會跨測試累積 —— 沒有這個
+fixture 的話，同一分鐘內跑到第六個會登入的測試就會開始收到 429，而且失敗的是
+**後面那些無辜的測試**，看起來完全像是隨機失敗。
+
+順帶一提，import routers.auth 會連帶初始化 `services` 套件，也就是在任何
+`import cv2` 之前把像素上限設好（見 services/__init__.py）。
+"""
 
 import pathlib
 import tempfile
@@ -7,15 +15,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def _reset_verify_limiter():
+    from routers import auth as auth_router
+
+    auth_router.verify_limiter.reset()
+    yield
+    auth_router.verify_limiter.reset()
+
+
 @pytest.fixture
 def client(monkeypatch):
     """接上假的 CoC API 的 TestClient。
 
     `test_http_flow.py` 有自己的同名 fixture（多了查無標籤的案例），
     模組層級的定義會蓋過這裡，兩邊互不影響。
-
-    順帶一提，建立 app 會連帶初始化 `services` 套件，也就是在任何
-    `import cv2` 之前把像素上限設好（見 services/__init__.py）。
     """
     import config
 

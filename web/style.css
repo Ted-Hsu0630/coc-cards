@@ -137,27 +137,96 @@ code {
 .series-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; }
 
+/* --- 卡片格子 --- */
+
+/* 固定 6 欄，照遊戲內相簿的排法。375px 的手機扣掉 main 與 card 的內距後
+   每格約 49px，所以名字只能用 10px 兩行 —— 12px 只塞得下 4 個字，而有 15 張
+   卡是 5 字以上（「超級巨石投手」「飛龍寶寶（夜）」）。 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
 }
-.slot {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--line);
+.slot { position: relative; }
+
+.tile {
+  /* 徽章要靠這個定位。少了它會往上找到 .slot，而 .slot 包含名字，
+     徽章就會壓在名字上。 */
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 2px solid var(--line);
   border-radius: 8px;
-  padding: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
 }
-.slot.elixir { border-left-color: var(--elixir); }
-.slot.dark { border-left-color: var(--dark); }
-.slot.builder { border-left-color: var(--builder); }
-.slot.super { border-left-color: var(--super); }
-.slot.missing { background: #2a1f22; }
-.slot.spare { background: #1f2a24; }
-.slot .name { font-size: 12px; line-height: 1.3; height: 2.6em; overflow: hidden; margin-bottom: 6px; }
+.tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* 沒有的卡轉灰壓暗，有的卡full色 —— 一眼掃過去就知道缺哪些，
+   不用逐格讀數字。 */
+.tile img { filter: grayscale(1) brightness(0.45); transition: filter .12s; }
+.slot.have .tile img { filter: none; }
+.slot.have .tile { border-color: var(--dim); }
+.slot.have.elixir .tile { border-color: var(--elixir); }
+.slot.have.dark .tile { border-color: var(--dark); }
+.slot.have.builder .tile { border-color: var(--builder); }
+.slot.have.super .tile { border-color: var(--super); }
+
+/* 未填只出現在匯入確認：跟「0 張」是兩回事，所以要看得出差別。 */
+.slot.unset .tile { border-style: dashed; border-color: var(--warn); }
+.slot.unset .tile img { filter: grayscale(1) brightness(0.35); }
+
+/* 1 張不顯示數字（有邊框顏色就夠了），2 張以上才標 —— 跟遊戲內一樣，
+   而「多出來的可以送人」正是這個站在算的東西。 */
+.dupe {
+  position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+  background: var(--accent); color: #241d08;
+  font-size: 10px; font-weight: 700; line-height: 1.5;
+  padding: 0 5px; border-radius: 999px;
+  pointer-events: none;
+}
+.dupe:empty { display: none; }
+
+/* 參考站的格子有 72px，減號 22px；我們只有 49px，照抄 22px 會蓋掉大半張臉。
+   18px 配 -4px 的位移，比例才跟那邊差不多，而且不會伸進隔壁的格子
+   （欄距 6px）。 */
+.dec {
+  position: absolute; top: -4px; right: -4px;
+  width: 18px; height: 18px; padding: 0; margin: 0;
+  border: 0; border-radius: 50%;
+  background: var(--bad); color: #fff;
+  font-size: 14px; line-height: 18px; text-align: center;
+  cursor: pointer;
+}
+.dec[hidden] { display: none; }
+
+.slot .name {
+  font-size: 10px; line-height: 1.25; height: 2.5em;
+  margin-top: 3px; text-align: center;
+  color: var(--dim); overflow: hidden;
+}
 .slot .name.unconfirmed::after { content: " ?"; color: var(--warn); }
-.slot select { padding: 6px; font-size: 15px; }
+
+.tile-note {
+  font-size: 9px; line-height: 1.3; text-align: center;
+  color: var(--dim); margin-top: 2px;
+}
+.tile-note.warn { color: var(--warn); }
+.tile-note.bad { color: var(--bad); }
+
+/* 匯入確認裡「為什麼要你確認」的小標題。原因寫在這裡，格子底下就不必
+   每一格都重複一次。 */
+.need-head {
+  font-size: 13px; font-weight: 500; margin: 14px 0 6px;
+  color: var(--dim);
+}
+.need-head:first-child { margin-top: 4px; }
+.need-head.warn { color: var(--warn); }
+.need-head.bad { color: var(--bad); }
 
 /* --- 配對 --- */
 .match { border-left: 3px solid var(--line); }
@@ -245,20 +314,6 @@ th.when, td.when { text-align: left; }
 .checkrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
 .checkrow .hint { flex: 1 0 100%; margin: 0 0 2px; }
 
-.imp-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 0; border-bottom: 1px solid var(--line);
-}
-.imp-row:last-child { border-bottom: 0; }
-.imp-name { flex: 1; min-width: 0; }
-.imp-card { font-size: 15px; margin-right: 8px; }
-.imp-row select { width: auto; min-width: 92px; margin-top: 0; flex: 0 0 auto; }
-.imp-row .hint { margin: 3px 0 0; }
-
-.tag.ok { background: var(--ok); color: #10231a; border-color: var(--ok); }
-.tag.warn { background: var(--warn); color: #2a1608; border-color: var(--warn); }
-.tag.bad { background: var(--bad); color: #2a0d0e; border-color: var(--bad); }
-.tag.dim { color: var(--dim); }
 
 /* 需要人工確認的區塊要看得出來是「還沒完成」，不能跟已完成的長一樣 */
 #importNeedsCard { border-left: 3px solid var(--warn); }

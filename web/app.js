@@ -126,6 +126,69 @@ $("#villagePicker").addEventListener("change", async (e) => {
   show("collection");
 });
 
+/* ---------- 卡片格子（收藏與匯入確認共用） ----------
+
+   點卡面 +1，右上角的紅色小圈 − 減一。排 6 欄是照遊戲內相簿的排法。
+
+   兩個畫面唯一的差別是「未填」：匯入確認要能表達「這格我不知道，不要動它」，
+   那跟「設成 0 張」是兩回事（CLAUDE.md 紅線 10 —— 認不出的格子不可以猜）。
+   收藏頁沒有未填，最小就是 0。差別只有 allowUnset 一個參數，兩邊共用同一份
+   互動邏輯，否則兩個畫面的手感遲早會走鐘。
+*/
+
+function cardTile(card, { value, allowUnset = false, note = null, noteClass = "", onChange }) {
+  const slot = el("div", `slot ${card.series}`);
+  slot.dataset.id = card.id;
+
+  // 卡面本身就是 +1 的按鈕。用 <button> 不是 <div>，鍵盤與螢幕閱讀器才進得來；
+  // − 是它的**兄弟**不是子元素 —— 按鈕不能巢狀，巢了瀏覽器會自己拆掉。
+  const tile = el("button", "tile");
+  tile.type = "button";
+  const img = el("img");
+  img.src = `/static/img/cards/${card.id}.png`;
+  img.alt = "";
+  img.loading = "lazy";
+  img.decoding = "async";
+  const dupe = el("span", "dupe");
+  tile.append(img, dupe);
+
+  const dec = el("button", "dec", "−");
+  dec.type = "button";
+
+  const name = el("div", "name" + (card.confirmed ? "" : " unconfirmed"), cardName(card.id));
+  if (!card.confirmed) name.title = "名稱尚未與遊戲畫面核對";
+
+  slot.append(tile, dec, name);
+  if (note) slot.append(el("div", `tile-note ${noteClass}`, note));
+
+  let v = value;
+  const paint = () => {
+    const unset = v === null || v === undefined;
+    slot.classList.toggle("unset", unset);
+    slot.classList.toggle("have", !unset && v > 0);
+    dupe.textContent = !unset && v >= 2 ? `x${v}` : "";
+    // 收藏頁 0 張時不需要 −；匯入確認的 0 還要能退回未填，所以照樣留著。
+    dec.hidden = unset || (!allowUnset && v === 0);
+    const label = unset ? "未填" : v === 0 ? "缺" : `${v} 張`;
+    tile.setAttribute("aria-label", `${cardName(card.id)}，${label}`);
+    dec.setAttribute("aria-label", `${cardName(card.id)} 減一`);
+  };
+
+  tile.addEventListener("click", () => {
+    v = v === null || v === undefined ? 1 : Math.min(v + 1, state.maxCount);
+    paint();
+    onChange(v);
+  });
+  dec.addEventListener("click", () => {
+    v = v > 0 ? v - 1 : allowUnset ? null : 0;
+    paint();
+    onChange(v);
+  });
+
+  paint();
+  return slot;
+}
+
 /* ---------- 收藏表 ---------- */
 
 function renderCollection() {
@@ -142,45 +205,22 @@ function renderCollection() {
 
     const grid = el("div", "grid");
     for (const c of state.cards.filter((c) => c.series === s.key)) {
-      grid.append(renderSlot(c));
+      grid.append(
+        cardTile(c, {
+          value: state.counts[c.id] || 0,
+          onChange: (n) => {
+            state.counts[c.id] = n;
+            state.dirty = true;
+            updateProgress();
+            markDirty();
+          },
+        }),
+      );
     }
     card.append(grid);
     body.append(card);
   }
   updateProgress();
-}
-
-function renderSlot(c) {
-  const n = state.counts[c.id] || 0;
-  const slot = el("div", `slot ${c.series}`);
-  slot.dataset.id = c.id;
-
-  const name = el("div", "name" + (c.confirmed ? "" : " unconfirmed"), cardName(c.id));
-  if (!c.confirmed) name.title = "名稱尚未與遊戲畫面核對";
-
-  const sel = el("select");
-  for (let i = 0; i <= state.maxCount; i++) {
-    const o = el("option", null, i === 0 ? "缺" : String(i));
-    o.value = String(i);
-    if (i === n) o.selected = true;
-    sel.append(o);
-  }
-  sel.addEventListener("change", () => {
-    state.counts[c.id] = Number(sel.value);
-    state.dirty = true;
-    paintSlot(slot, Number(sel.value));
-    updateProgress();
-    markDirty();
-  });
-
-  slot.append(name, sel);
-  paintSlot(slot, n);
-  return slot;
-}
-
-function paintSlot(slot, n) {
-  slot.classList.toggle("missing", n === 0);
-  slot.classList.toggle("spare", n >= 2);
 }
 
 function updateProgress() {
@@ -550,42 +590,31 @@ function importFinal(row) {
   return null;
 }
 
-function importCountSelect(row, onPick) {
-  const sel = el("select");
-  const blank = el("option", null, row.state === "read" ? "" : "— 未填 —");
-  blank.value = "";
-  sel.append(blank);
-  for (let i = 0; i <= state.maxCount; i++) {
-    const o = el("option", null, String(i));
-    o.value = String(i);
-    sel.append(o);
-  }
-  const cur = importFinal(row);
-  sel.value = cur === null || cur === undefined ? "" : String(cur);
-  sel.addEventListener("change", () => {
-    if (sel.value === "") delete imp.picks[row.id];
-    else imp.picks[row.id] = Number(sel.value);
-    onPick();
+function importTile(row) {
+  // 格子底下只寫**這張卡特有**的事。狀態（認不出／沒拍到）由上面的小標題
+  // 講一次就好 —— 每格都重複一遍的話，24 張沒拍到的就會刷出 24 行一模一樣
+  // 的字，格子本身反而看不到了。原有張數也只在不是 0 的時候才值得提。
+  const cur = row.current || 0;
+  const note = [row.note, cur > 0 ? `原有 ${cur} 張` : null].filter(Boolean).join("・") || null;
+
+  return cardTile(state.cardById[row.id], {
+    value: importFinal(row),
+    allowUnset: true,
+    note,
+    noteClass: IMPORT_STATE[row.state].cls,
+    onChange: (n) => {
+      if (n === null) delete imp.picks[row.id];
+      else imp.picks[row.id] = n;
+      updateImportHint();
+    },
   });
-  return sel;
 }
 
-function importRow(row, onPick) {
-  const wrap = el("div", "imp-row");
-  const meta = IMPORT_STATE[row.state];
-
-  const left = el("div", "imp-name");
-  left.append(el("span", "imp-card", row.name));
-  const tag = el("span", `tag ${meta.cls}`, meta.label);
-  left.append(tag);
-  if (row.note) left.append(el("p", "hint", row.note));
-  if (row.state !== "read") {
-    const cur = row.current === null || row.current === undefined ? 0 : row.current;
-    left.append(el("p", "hint", `不填維持 ${cur} 張`));
-  }
-
-  wrap.append(left, importCountSelect(row, onPick));
-  return wrap;
+// 只更新那一行字。整個 redrawImport 會把 60 個格子重建一次，點一下就重來一遍
+// 太浪費，而且會把畫面捲回去。上方的辨識摘要是伺服器算的，跟使用者改了什麼無關。
+function updateImportHint() {
+  const willWrite = imp.rows.filter((r) => importFinal(r) !== null).length;
+  $("#importApplyHint").textContent = `會寫入 ${willWrite} 張，其餘 ${60 - willWrite} 張維持原值`;
 }
 
 function renderImport(data) {
@@ -677,17 +706,26 @@ function redrawImport() {
     $("#importNeedsTitle").textContent = `需要你確認的 ${needs.length} 張`;
     const box = $("#importNeeds");
     box.textContent = "";
-    for (const r of needs) box.append(importRow(r, redrawImport));
+    // 依原因分組，原因寫在小標題上。最需要注意的排前面：不一致代表兩張截圖
+    // 互相打架，比單純沒拍到值得先看。
+    for (const st of ["conflict", "unknown", "uncovered"]) {
+      const rows = needs.filter((r) => r.state === st);
+      if (!rows.length) continue;
+      const meta = IMPORT_STATE[st];
+      box.append(el("h3", `need-head ${meta.cls}`, `${meta.label} ${rows.length} 張`));
+      const grid = el("div", "grid");
+      for (const r of rows) grid.append(importTile(r));
+      box.append(grid);
+    }
   }
 
   const readBox = $("#importRead");
   readBox.textContent = "";
-  for (const r of imp.rows.filter((x) => x.state === "read")) {
-    readBox.append(importRow(r, redrawImport));
-  }
+  const readGrid = el("div", "grid");
+  for (const r of imp.rows.filter((x) => x.state === "read")) readGrid.append(importTile(r));
+  readBox.append(readGrid);
 
-  const willWrite = imp.rows.filter((r) => importFinal(r) !== null).length;
-  $("#importApplyHint").textContent = `會寫入 ${willWrite} 張，其餘 ${60 - willWrite} 張維持原值`;
+  updateImportHint();
 }
 
 $("#importFiles").addEventListener("change", (e) => {

@@ -67,6 +67,7 @@
   <!-- 我的收藏 -->
   <section id="view-collection" class="view" hidden>
     <div class="card sticky-summary">
+      <p class="hint">點卡片加一，右上角紅圈減一。</p>
       <div class="progress-row" id="seriesProgress"></div>
       <div class="save-row">
         <span id="saveState" class="hint">—</span>
@@ -129,14 +130,15 @@
       <div class="card" id="importNeedsCard" hidden>
         <h2 id="importNeedsTitle"></h2>
         <p class="hint">
-          認不出的格子<b>留白</b>，不會猜。不填則保持原樣。
+          認不出的格子<b>留白</b>，不會猜。點卡片開始填，減到 0 再按一次退回未填。
+          不填的維持原值。
         </p>
         <div id="importNeeds"></div>
       </div>
 
       <div class="card">
         <h2>讀出來的</h2>
-        <p class="hint">將覆蓋目前的收藏，可直接修改。</p>
+        <p class="hint">將覆蓋目前的收藏。點卡片加一，右上角紅圈減一。</p>
         <div id="importRead"></div>
       </div>
 

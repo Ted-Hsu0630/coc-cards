@@ -131,3 +131,43 @@ async def get_players(tag_list: list[str]) -> dict[str, dict | None]:
 
     results = await asyncio.gather(*(one(t) for t in tag_list))
     return dict(results)
+
+
+async def get_clan(tag: str) -> dict:
+    """回傳 {tag, name, members: [{tag, name}]}。
+
+    `/clans/{tag}` 一次就給整份成員名單（含每個人的名字），所以部落同步不必
+    逐人打 `/players/{tag}` —— 成本從「跟玩家數成正比」變成「跟部落數成正比」。
+    實測正式機的兩個部落共 80 名成員，兩次呼叫就涵蓋完。
+    """
+    resp = await _request("GET", f"/clans/{tags.encode(tag)}")
+    d = resp.json()
+    return {
+        "tag": d.get("tag") or tags.normalize(tag),
+        "name": d.get("name") or "",
+        "members": [
+            {"tag": m["tag"], "name": m.get("name") or ""}
+            for m in (d.get("memberList") or [])
+            if m.get("tag")
+        ],
+    }
+
+
+async def get_clans(tag_list: list[str]) -> dict[str, dict | None]:
+    """並發批次查詢部落。個別失敗不影響其他人，失敗者回 None。
+
+    失敗要回 None 而不是往上拋：某個部落被解散時，其他部落的成員照樣該更新，
+    而查不到的那些人會退回逐人查詢。
+    """
+
+    async def one(t: str):
+        try:
+            return t, await get_clan(t)
+        except PlayerNotFound:  # 404，部落解散或標籤打錯
+            return t, None
+        except CocError as e:
+            log.warning("同步部落 %s 失敗：%s", t, e)
+            return t, None
+
+    results = await asyncio.gather(*(one(t) for t in tag_list))
+    return dict(results)

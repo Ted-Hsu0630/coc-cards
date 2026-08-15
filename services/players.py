@@ -189,18 +189,45 @@ def _is_stale(synced_at: str | None) -> bool:
 async def sync_clans(conn) -> int:
     """把過期的部落資訊重抓一次。回傳實際更新的筆數。
 
-    SPEC §8：循序寫法在 50 人的部落要 12.8 秒，所以這裡走 coc.get_players 的
-    並發批次。快取沒過期就完全不打 API —— 一般情況下配對是零外部呼叫。
+    **先查部落、再補查個人。** 逐人打 `/players/{tag}` 的成本跟玩家數成正比：
+    並發上限是 10，所以是 `ceil(人數 / 10)` 波，每波約 450ms（正式機實測）——
+    17 人要 886ms，50 人要 2.2 秒，而且會一直長。
+
+    改成一個部落打一次 `/clans/{tag}`，一次就拿到整份成員名單。實測正式機的
+    2 個部落涵蓋 80 名成員，所以 17 個玩家只要 2 次呼叫、1 波就結束；玩家長到
+    100 人也還是 2 次。成本改成跟**部落數**成正比。
+
+    名單裡找不到的人才退回逐人查 —— 那是「剛退出部落」「本來就沒部落」
+    「部落查詢失敗」三種情況，穩態下接近 0 個。
     """
-    rows = conn.execute("SELECT tag, clan_synced_at FROM players").fetchall()
-    stale = [r["tag"] for r in rows if _is_stale(r["clan_synced_at"])]
+    rows = conn.execute("SELECT tag, clan_tag, clan_synced_at FROM players").fetchall()
+    stale = [(r["tag"], r["clan_tag"]) for r in rows if _is_stale(r["clan_synced_at"])]
     if not stale:
         return 0
 
-    results = await coc.get_players(stale)
+    found: dict[str, dict | None] = {}
+    clan_tags = sorted({ct for _, ct in stale if ct})
+    if clan_tags:
+        for clan in (await coc.get_clans(clan_tags)).values():
+            if clan is None:
+                continue
+            for m in clan["members"]:
+                # 兩邊都正規化過才比得起來（資料庫存的是 normalize 之後的形式）
+                found[tags.normalize(m["tag"])] = {
+                    "name": m["name"],
+                    "clan_tag": clan["tag"],
+                    "clan_name": clan["name"],
+                }
+
+    # 只有名單裡沒出現的人才需要各查一次
+    missing = [t for t, _ in stale if t not in found]
+    if missing:
+        found.update(await coc.get_players(missing))
+
     ts = db.now()
     updated = 0
-    for tag, info in results.items():
+    for tag, _ in stale:
+        info = found.get(tag)
         if info is None:
             # 查不到就只推進時間戳，避免每次配對都重試同一個壞掉的 tag
             conn.execute("UPDATE players SET clan_synced_at = ? WHERE tag = ?", (ts, tag))
@@ -212,7 +239,10 @@ async def sync_clans(conn) -> int:
             (info["name"], info["clan_tag"], info["clan_name"], ts, ts, tag),
         )
         updated += 1
-    log.info("部落同步：%d 個過期，%d 個更新成功", len(stale), updated)
+    log.info(
+        "部落同步：%d 個過期，%d 個部落名單涵蓋 %d 人，%d 人逐一查詢，%d 個更新成功",
+        len(stale), len(clan_tags), len(stale) - len(missing), len(missing), updated,
+    )
     return updated
 
 

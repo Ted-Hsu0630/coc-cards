@@ -30,28 +30,33 @@ async function api(path, opts = {}) {
 
 // 別人的庫存有多舊。配對是拿對方存下來的資料在算，三週沒更新的表算出來的
 // 結果不能當真 —— 這個標示就是讓人自己判斷要不要相信。
-// 用「日曆天」而不是「經過幾小時」：昨天晚上存的隔天早上看應該是「昨天」，
-// 不是「今天」。
-function sinceDays(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return null;
-  const then = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((today - then) / 86400000);
+function minutesSince(iso) {
+  if (!iso) return null;
+  const t = new Date(iso);
+  if (isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 60000);
 }
 
+// 挑撐得住的最大單位：剛存完看到「180 分鐘前」很難換算，隔了三週看到
+// 「30240 分鐘前」更沒意義。時鐘有偏差時 mins 會是負的，一律當「剛剛」。
 function lastUpdated(iso) {
-  if (!iso) return "未知";
-  const n = sinceDays(iso);
-  if (n === null) return "未知";
-  if (n <= 0) return "今天";
-  if (n === 1) return "昨天";
-  return `${n} 天前`;
+  const mins = minutesSince(iso);
+  if (mins === null) return "未知";
+  if (mins < 1) return "剛剛";
+  if (mins < 60) return `${mins} 分鐘前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小時前`;
+  return `${Math.floor(hours / 24)} 天前`;
 }
 
-// 幾天算舊。配對結果會標出來，數字沒有精算過,是「一週沒動就該打折看待」。
-const STALE_DAYS = 7;
+// 多久算舊。沒有精算過，是「一週沒動就該打折看待」。
+const STALE_MINUTES = 7 * 24 * 60;
+
+// 未知一律視為舊 —— 不知道有多舊，就不該讓它看起來是新的。
+function isStale(iso) {
+  const mins = minutesSince(iso);
+  return mins === null || mins >= STALE_MINUTES;
+}
 
 const cardName = (id) => {
   const c = state.cardById[id];
@@ -283,9 +288,7 @@ function renderMatch(m) {
     "）";
   card.append(sub);
 
-  const days = m.collection_updated_at ? sinceDays(m.collection_updated_at) : null;
-  const stale = days === null || days >= STALE_DAYS;
-  card.append(el("p", stale ? "hint stale" : "hint",
+  card.append(el("p", isStale(m.collection_updated_at) ? "hint stale" : "hint",
     `庫存更新：${lastUpdated(m.collection_updated_at)}`));
 
   for (const s of m.series) card.append(renderSwap(s));
@@ -361,9 +364,8 @@ async function loadClan() {
     tr.append(clan);
     tr.append(el("td", "num", p.has_data ? `${p.collected}/${p.total}` : "未建表"));
 
-    const days = p.collection_updated_at ? sinceDays(p.collection_updated_at) : null;
     const upd = el("td", "num", p.has_data ? lastUpdated(p.collection_updated_at) : "—");
-    if (p.has_data && (days === null || days >= STALE_DAYS)) upd.classList.add("stale");
+    if (p.has_data && isStale(p.collection_updated_at)) upd.classList.add("stale");
     tr.append(upd);
     tbody.append(tr);
   }

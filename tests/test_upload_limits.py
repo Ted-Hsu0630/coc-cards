@@ -90,6 +90,27 @@ def test_壓縮炸彈被擋成一句友善的拒絕而不是_500():
     assert "尺寸過大" in entry["reason"]
 
 
+def test_畫面上的張數跟後端同一個來源(client):
+    """這條是實際踩過才補的：MAX_IMAGES 從 12 改成 8，畫面上那句
+    「一次最多 12 張」沒跟著改，使用者要等到上傳被拒絕才發現。
+
+    所以檢查兩件事 —— API 有把數字送出來，而且 HTML 裡沒有寫死任何數字。
+    """
+    import re
+
+    import config
+
+    assert client.get("/api/import/available").json()["max_images"] == importer.MAX_IMAGES
+
+    html = (config.BASE_DIR / "web" / "index.html").read_text(encoding="utf-8")
+    assert '<span id="importMax"></span>' in html, "填數字的位置不見了"
+    assert not re.search(r"最多\s*\d+\s*張", html), "HTML 又把張數寫死了"
+
+    # id 打錯的話畫面會永遠空白，而且不會有任何錯誤。
+    js = (config.BASE_DIR / "web" / "app.js").read_text(encoding="utf-8")
+    assert "#importMax" in js
+
+
 def test_一次最多八張(client):
     # 張數檢查在路由的函式本體裡，而相依（登入）先於本體解析 —— 沒登入的話
     # 只會拿到 401，這個測試就等於什麼都沒測到。

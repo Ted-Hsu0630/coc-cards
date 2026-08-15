@@ -20,8 +20,13 @@ router = APIRouter(prefix="/api", tags=["import"])
 
 @router.get("/import/available")
 def is_available():
-    """前端用這個決定要不要顯示「截圖匯入」分頁。"""
-    return {"available": importer.available()}
+    """前端用這個決定要不要顯示「截圖匯入」分頁。
+
+    `max_images` 一併回傳，讓畫面上那句「一次最多 N 張」跟後端的檢查同一個
+    來源 —— 寫死在 HTML 裡的話，改了 MAX_IMAGES 之後畫面會繼續講舊數字，
+    而使用者要等到上傳被拒絕才發現（實際發生過）。
+    """
+    return {"available": importer.available(), "max_images": importer.MAX_IMAGES}
 
 
 @router.post("/import/screenshots")

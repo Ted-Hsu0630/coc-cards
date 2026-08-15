@@ -94,7 +94,9 @@
         在遊戲裡打開卡牌衝突的相簿，由上往下捲、每頁拍一張，
         <b>5 張就拍得完 60 格</b>。相簿以外的畫面會被自動略過。
       </p>
-      <label>選擇截圖（一次最多 12 張）
+      <!-- 張數由 /api/import/available 填入，不要寫死：後端改了 MAX_IMAGES
+           之後這裡會繼續講舊數字，而使用者要等到上傳被拒絕才發現。 -->
+      <label>選擇截圖（一次最多 <span id="importMax"></span> 張）
         <input id="importFiles" type="file" accept="image/*" multiple>
       </label>
       <button type="submit" class="primary" id="importBtn" disabled>開始辨識</button>

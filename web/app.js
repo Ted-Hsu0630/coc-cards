@@ -746,6 +746,8 @@ async function boot() {
   try {
     const cap = await api("/api/import/available");
     $('.tabs button[data-view="import"]').hidden = !cap.available;
+    // 分頁在這支 API 回來之前是隱藏的，所以使用者不會看到空白的那一格
+    $("#importMax").textContent = cap.max_images;
   } catch {
     /* 舊版伺服器沒有這支 API，維持隱藏就好 */
   }

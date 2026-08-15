@@ -330,18 +330,32 @@ code {
 .swap .lbl { font-size: 12px; color: var(--dim); margin-bottom: 6px; }
 .swap .lbl b { color: var(--text); font-size: 13px; }
 
-.pairing { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
-.pairing .arrow { color: var(--accent); font-size: 14px; }
+.pairing { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.pairing .arrow { color: var(--accent); font-size: 16px; }
+
+/* 交換的卡面。跟收藏頁同一組圖，但這裡是唯讀展示不是按鈕。
+   邊框顏色分的是**方向**（送出／收到）不是系列 —— 在這個畫面上，
+   「這張是我要給出去的還是拿進來的」比它屬於哪個系列重要得多。 */
+.face { display: flex; flex-direction: column; align-items: center; width: 54px; }
+.face img {
+  display: block; width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: 7px; border: 2px solid var(--line);
+}
+.face-name {
+  font-size: 9px; line-height: 1.2; text-align: center; color: var(--dim);
+  margin-top: 3px; max-height: 2.4em; overflow: hidden;
+}
+.face.give img { border-color: var(--warn); }
+.face.get img { border-color: var(--ok); }
+.face.faded { opacity: .55; }
 
 .chip {
   font-size: 12px; padding: 3px 8px; border-radius: 6px;
   background: var(--panel-2); border: 1px solid var(--line);
 }
-.chip.give { border-color: #6a4a2a; }
-.chip.get { border-color: #2a5a44; }
 .chip.faded { opacity: .62; }
 
-.alt { margin-top: 6px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.alt { margin-top: 8px; display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
 .alt-label { font-size: 11px; color: var(--dim); }
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -378,6 +392,16 @@ th.num, td.num { width: 18%; }
 th.when, td.when { width: 28%; }
 
 .empty { color: var(--dim); text-align: center; padding: 28px 12px; }
+
+/* 開頁時整個畫面只有這一行字，貼在最上面看起來像是載入壞掉了。
+   撐到視窗高度置中，等待期間才像是「正在做事」而不是「畫到一半」。
+   高度用 svh 不用 vh：手機瀏覽器的網址列會伸縮，vh 取的是列收起來的高度，
+   於是內容其實被推到偏下。 */
+#booting {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 70svh;
+}
+#booting .hint { margin: 0; }
 
 .village-row { display: flex; align-items: center; gap: 10px; }
 .village-row .who { flex: 1; min-width: 0; }

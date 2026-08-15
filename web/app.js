@@ -396,9 +396,9 @@ function renderSwap(s) {
 
   for (let i = 0; i < s.trades; i++) {
     const row = el("div", "pairing");
-    row.append(el("span", "chip give", cardName(s.i_give[i])));
+    row.append(cardFace(s.i_give[i], "give"));
     row.append(el("span", "arrow", "⇄"));
-    row.append(el("span", "chip get", cardName(s.i_get[i])));
+    row.append(cardFace(s.i_get[i], "get"));
     box.append(row);
   }
 
@@ -413,8 +413,25 @@ function renderSwap(s) {
 function altRow(label, ids, cls) {
   const wrap = el("div", "alt");
   wrap.append(el("span", "alt-label", label + "："));
-  for (const id of ids) wrap.append(el("span", `chip ${cls} faded`, cardName(id)));
+  for (const id of ids) wrap.append(cardFace(id, `${cls} faded`));
   return wrap;
+}
+
+/* 配對畫面的小卡面。
+
+   跟收藏頁用同一組圖（瀏覽器也已經快取過了），但這裡是唯讀的展示不是按鈕 ——
+   純文字的卡名要讀完才知道是哪張，看圖是一眼的事，而使用者在遊戲裡本來就是
+   照圖認卡。名字仍然留在圖下面：兩個系列的同名卡（飛龍寶寶）光看圖分不出來。 */
+function cardFace(id, cls) {
+  const box = el("div", `face ${cls}`);
+  const img = el("img");
+  img.src = `/static/img/cards/${id}.png`;
+  img.alt = "";
+  img.loading = "lazy";
+  img.decoding = "async";
+  box.append(img, el("span", "face-name", cardName(id)));
+  box.title = cardName(id);
+  return box;
 }
 
 /* ---------- 部落總覽 ---------- */

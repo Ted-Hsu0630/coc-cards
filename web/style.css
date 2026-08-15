@@ -349,6 +349,47 @@ code {
 .face.get img { border-color: var(--ok); }
 .face.faded { opacity: .55; }
 
+/* --- 多人配對 --- */
+
+.modes { display: flex; gap: 8px; margin-bottom: 12px; }
+.modes button { flex: 1; font-size: 14px; }
+.modes button.active {
+  background: var(--panel-2); color: var(--text);
+  border-color: var(--accent); font-weight: 600;
+}
+
+.people-head { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
+.people-head button { padding: 5px 10px; font-size: 13px; }
+.people-head .alt-label { margin-left: auto; }
+.people { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.person {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 5px 2px; font-size: 14px; color: var(--text);
+}
+.person input { width: auto; margin: 0; flex: 0 0 auto; }
+/* 沒建表的人參與不了任何交換，勾了也不會出現在計劃裡 —— 先讓他看起來就不像
+   一個有用的選項，比事後解釋「為什麼他沒出現」好 */
+.person.nodata { color: var(--dim); }
+
+.step-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 10px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.step-head b { font-size: 15px; }
+
+/* 一組 = 找同一個人談的所有交換。人名只出現一次，卡片列在底下。 */
+.tgroup { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+.tgroup:last-child { border-bottom: 0; padding-bottom: 0; }
+.tgroup-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.tgroup-head b { font-size: 14px; }
+/* 發起方是規則決定的（只有他能指定自己沒有的卡），反過來開口會被遊戲擋掉，
+   所以這一行不是補充說明而是操作指示 */
+.tinit { font-size: 12px; color: var(--accent); }
+
+.trade { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.trade:last-child { margin-bottom: 0; }
+
 .chip {
   font-size: 12px; padding: 3px 8px; border-radius: 6px;
   background: var(--panel-2); border: 1px solid var(--line);

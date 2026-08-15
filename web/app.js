@@ -434,6 +434,197 @@ function cardFace(id, cls) {
   return box;
 }
 
+/* ---------- 多人配對 ----------
+
+   雙人配對回答「我跟這個人能換什麼」，這裡回答「這一群人照什麼順序換」。
+   因為換卡會改變狀態，而且存在真正的鏈（手上只有 1 張送不出去，收到一張
+   變 2 張之後才送得掉），所以結果必須分步驟。同一步裡的交換只動用該步開始
+   時就在手上的卡，彼此不影響順序，可以同時進行。 */
+
+const plan = { people: [], picked: new Set(), favor: "" };
+
+for (const b of document.querySelectorAll(".modes button")) {
+  b.addEventListener("click", () => setMatchMode(b.dataset.mode));
+}
+
+function setMatchMode(mode) {
+  for (const b of document.querySelectorAll(".modes button")) {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  }
+  $("#pairPane").hidden = mode !== "pair";
+  $("#planPane").hidden = mode !== "plan";
+  if (mode === "plan" && !plan.people.length) loadPlanPeople();
+}
+
+async function loadPlanPeople() {
+  const box = $("#planPeople");
+  box.textContent = "載入中…";
+  try {
+    // 借用部落總覽那支：它已經有名字、部落、有沒有建表
+    const data = await api("/api/clan/overview?same_clan=0");
+    plan.people = data.players;
+  } catch (e) {
+    box.textContent = "";
+    box.append(el("p", "error", `讀取失敗：${e.message}`));
+    return;
+  }
+  renderPlanPeople();
+}
+
+// 篩選之後看得到的人。勾選狀態一律只在這個範圍內談 —— 藏起來的人還留在
+// 名單裡的話，畫面上的「已選 N 人」跟實際送出去的會對不起來。
+function visiblePeople() {
+  return $("#planSameClan").checked ? plan.people.filter((p) => p.same_clan) : plan.people;
+}
+
+$("#planSameClan").addEventListener("change", () => {
+  const seen = new Set(visiblePeople().map((p) => p.tag));
+  for (const t of [...plan.picked]) if (!seen.has(t)) plan.picked.delete(t);
+  renderPlanPeople();
+});
+$("#planAll").addEventListener("click", () => {
+  for (const p of visiblePeople()) plan.picked.add(p.tag);
+  renderPlanPeople();
+});
+$("#planNone").addEventListener("click", () => {
+  plan.picked.clear();
+  renderPlanPeople();
+});
+
+function renderPlanPeople() {
+  const box = $("#planPeople");
+  box.textContent = "";
+  const list = visiblePeople();
+  for (const p of list) {
+    const me = p.tag === state.me.active_tag;
+    const row = el("label", "person" + (p.has_data ? "" : " nodata"));
+    const cb = el("input");
+    cb.type = "checkbox";
+    cb.checked = plan.picked.has(p.tag);
+    cb.addEventListener("change", () => {
+      if (cb.checked) plan.picked.add(p.tag);
+      else plan.picked.delete(p.tag);
+      renderPlanPeople();
+    });
+    const label = `${p.name}${me ? "（你）" : ""}　${p.collected}/${p.total}`;
+    row.append(cb, el("span", null, label));
+    if (!p.has_data) row.append(el("span", "alt-label", "未建表"));
+    box.append(row);
+  }
+  if (!list.length) {
+    box.append(el("p", "hint", "同部落沒有其他人建表，取消上面的篩選看看別的部落。"));
+  }
+
+  $("#planCount").textContent = `已選 ${plan.picked.size} 人`;
+  // 一個人湊不成交換。與其讓伺服器回錯誤，不如讓按鈕自己說明還缺什麼
+  $("#planRun").disabled = plan.picked.size < 2;
+  renderPlanFavor();
+}
+
+function renderPlanFavor() {
+  const sel = $("#planFavor");
+  const keep = sel.value;
+  sel.textContent = "";
+  const none = el("option", null, "不指定（全體新增最多）");
+  none.value = "";
+  sel.append(none);
+  for (const p of plan.people) {
+    if (!plan.picked.has(p.tag)) continue;
+    const o = el("option", null, p.tag === state.me.active_tag ? `${p.name}（你）` : p.name);
+    o.value = p.tag;
+    sel.append(o);
+  }
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
+}
+
+$("#planRun").addEventListener("click", async () => {
+  const btn = $("#planRun");
+  const err = $("#planError");
+  err.hidden = true;
+  btn.disabled = true;
+  $("#planBody").textContent = "";
+  try {
+    const data = await api("/api/matches/plan", {
+      method: "POST",
+      body: JSON.stringify({
+        tags: [...plan.picked],
+        favor: $("#planFavor").value || null,
+      }),
+    });
+    renderPlanResult(data);
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderPlanResult(data) {
+  const body = $("#planBody");
+  body.textContent = "";
+  const nameOf = (t) => (data.players[t] || {}).name || t;
+
+  if (!data.steps.length) {
+    body.append(el("div", "empty", "這幾個人之間換不出東西"));
+    return;
+  }
+
+  const head = el("div", "card");
+  const s = data.summary;
+  head.append(el("h2", null, `${s.trades} 筆交換，補上 ${s.total_new} 張`));
+  const who = Object.entries(s.gained).sort((a, b) => b[1] - a[1]);
+  head.append(el("p", "hint", who.map(([t, n]) => `${nameOf(t)} +${n}`).join("　·　")));
+  // 兩件事使用者必須知道，不可以讓畫面看起來比實際更有把握
+  head.append(el("p", "hint",
+    "這是搜尋出來的好方案，不保證是理論上的最優解。" +
+    "第二步以後要等前面那步真的換完；中途有人改了庫存就得重算。"));
+  body.append(head);
+
+  data.steps.forEach((batch, i) => {
+    const card = el("div", "card");
+    const h = el("div", "step-head");
+    h.append(el("b", null, `第 ${i + 1} 步`));
+    h.append(el("span", "alt-label", `${batch.length} 筆，可同時進行`));
+    card.append(h);
+    for (const g of groupTrades(batch)) card.append(renderTradeGroup(g, nameOf));
+    body.append(card);
+  });
+}
+
+// 按「誰對誰」分組。實際操作就是找一個人談完好幾張，逐筆列的話同一組人名會
+// 重複七八次，21 筆看起來像一面牆。
+function groupTrades(batch) {
+  const groups = new Map();
+  for (const tr of batch) {
+    const key = `${tr.initiator}→${tr.receiver}`;
+    if (!groups.has(key)) {
+      groups.set(key, { initiator: tr.initiator, receiver: tr.receiver, trades: [] });
+    }
+    groups.get(key).trades.push(tr);
+  }
+  return [...groups.values()];
+}
+
+function renderTradeGroup(g, nameOf) {
+  const box = el("div", "tgroup");
+
+  const head = el("div", "tgroup-head");
+  // 發起方只能指定自己完全沒有的卡，所以「誰開口」是規則決定的，不是隨便挑的。
+  // 反過來發起會被遊戲直接擋掉，這行是操作指示不是補充說明。
+  head.append(el("b", null, nameOf(g.initiator)));
+  head.append(el("span", "tinit", `發起，找 ${nameOf(g.receiver)} 換 ${g.trades.length} 筆`));
+  box.append(head);
+
+  for (const tr of g.trades) {
+    const row = el("div", "trade");
+    row.append(cardFace(tr.gives, "give"), el("span", "arrow", "⇄"), cardFace(tr.gets, "get"));
+    if (!tr.receiver_new) row.append(el("span", "alt-label", "對方收到的是重複卡"));
+    box.append(row);
+  }
+  return box;
+}
+
 /* ---------- 部落總覽 ---------- */
 
 $("#clanSameOnly").addEventListener("change", loadClan);

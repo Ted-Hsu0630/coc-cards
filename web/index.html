@@ -85,15 +85,45 @@
 
   <!-- 配對 -->
   <section id="view-matches" class="view" hidden>
-    <div class="card">
-      <label class="switch">
-        <input type="checkbox" id="sameClanOnly" checked>
-        <span>只顯示同部落</span>
-      </label>
-      <p class="hint" id="matchSummary">—</p>
-      <p class="warn" id="syncWarn" hidden>玩家當前部落資訊同步失敗</p>
+    <!-- 雙人與多人回答的是同一個問題（跟誰換），放同一頁才好對照 -->
+    <div class="modes">
+      <button type="button" data-mode="pair" class="active">雙人配對</button>
+      <button type="button" data-mode="plan">多人配對</button>
     </div>
-    <div id="matchBody"></div>
+
+    <div id="pairPane">
+      <div class="card">
+        <label class="switch">
+          <input type="checkbox" id="sameClanOnly" checked>
+          <span>只顯示同部落</span>
+        </label>
+        <p class="hint" id="matchSummary">—</p>
+        <p class="warn" id="syncWarn" hidden>玩家當前部落資訊同步失敗</p>
+      </div>
+      <div id="matchBody"></div>
+    </div>
+
+    <div id="planPane" hidden>
+      <div class="card">
+        <p class="hint tip">勾選要一起換的人，算出分步驟的交換清單。</p>
+        <label class="switch">
+          <input type="checkbox" id="planSameClan" checked>
+          <span>只顯示同部落</span>
+        </label>
+        <div class="people-head">
+          <button type="button" class="ghost" id="planAll">全選</button>
+          <button type="button" class="ghost" id="planNone">全不選</button>
+          <span class="alt-label" id="planCount"></span>
+        </div>
+        <div id="planPeople" class="people"></div>
+        <label>優先照顧
+          <select id="planFavor"></select>
+        </label>
+        <button type="button" class="primary" id="planRun">開始配對</button>
+        <p class="error" id="planError" hidden></p>
+      </div>
+      <div id="planBody"></div>
+    </div>
   </section>
 
   <!-- 部落總覽 -->

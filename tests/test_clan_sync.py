@@ -113,6 +113,48 @@ async def test_離開部落的人才退回逐一查詢(conn, monkeypatch):
     assert (row["clan_tag"], row["clan_name"]) == ("#C2", "別的部落"), "沒換成新部落"
 
 
+async def test_跑去另一個已知部落的人不該退回個別查(conn, monkeypatch):
+    """第一輪只查「過期玩家目前所在」的部落，會漏掉一種情況。
+
+    #A 記錄上在 #C1，實際已經跑去 #C2；而 #C2 裡的 #B 剛同步過還沒過期，
+    所以 #C2 根本不在第一輪的名單裡。#A 在 #C1 的名單中找不到 —— 但他並沒有
+    消失，只是換到一個**我們也認識的部落**。
+
+    這時再查一次 #C2 就能一次撈到，退回逐人查是白花的。第二輪只在真的有人
+    失蹤時才發生，所以穩態下不多花任何一次呼叫（見下一條）。
+    """
+    add_player(conn, "#A", "阿明", "#C1", "天堂")
+    add_player(conn, "#B", "小華", "#C2", "隔壁", synced_min_ago=0)  # 沒過期
+    spy = Spy(
+        monkeypatch,
+        {
+            "#C1": clan("#C1", "天堂", []),                    # 阿明已經不在這
+            "#C2": clan("#C2", "隔壁", [("#A", "阿明"), ("#B", "小華")]),
+        },
+    )
+
+    await players.sync_clans(conn)
+
+    assert spy.clan_calls == [["#C1"], ["#C2"]], "第二輪沒去掃剩下的已知部落"
+    assert spy.player_calls == [], "換到已知部落的人不該被個別查"
+    row = conn.execute("SELECT clan_tag, clan_name FROM players WHERE tag='#A'").fetchone()
+    assert (row["clan_tag"], row["clan_name"]) == ("#C2", "隔壁")
+
+
+async def test_沒有人失蹤就不會有第二輪(conn, monkeypatch):
+    """第二輪是補救措施，不是例行工作 —— 否則每次同步都要把所有部落掃一遍。"""
+    add_player(conn, "#A", "阿明", "#C1", "天堂")
+    add_player(conn, "#B", "小華", "#C2", "隔壁", synced_min_ago=0)
+    spy = Spy(
+        monkeypatch,
+        {"#C1": clan("#C1", "天堂", [("#A", "阿明")]), "#C2": clan("#C2", "隔壁", [("#B", "小華")])},
+    )
+
+    await players.sync_clans(conn)
+
+    assert spy.clan_calls == [["#C1"]], "沒有人失蹤卻多掃了一輪"
+
+
 async def test_沒有部落的人直接個別查(conn, monkeypatch):
     """clan_tag 是 NULL 的人沒有部落名單可查，只能問本人。"""
     add_player(conn, "#SOLO", "獨行俠", None, None)

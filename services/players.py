@@ -206,9 +206,9 @@ async def sync_clans(conn) -> int:
         return 0
 
     found: dict[str, dict | None] = {}
-    clan_tags = sorted({ct for _, ct in stale if ct})
-    if clan_tags:
-        for clan in (await coc.get_clans(clan_tags)).values():
+
+    async def scan(clan_tags: set[str]) -> None:
+        for clan in (await coc.get_clans(sorted(clan_tags))).values():
             if clan is None:
                 continue
             for m in clan["members"]:
@@ -219,8 +219,24 @@ async def sync_clans(conn) -> int:
                     "clan_name": clan["name"],
                 }
 
-    # 只有名單裡沒出現的人才需要各查一次
+    # 第一輪：過期玩家目前所在的部落
+    queried = {ct for _, ct in stale if ct}
+    if queried:
+        await scan(queried)
     missing = [t for t, _ in stale if t not in found]
+
+    # 第二輪：名單裡找不到的人多半只是換到**另一個我們也認識的部落**，
+    # 而那個部落如果剛好沒人過期，第一輪就不會查到它。所以在退回逐人查之前
+    # 先把剩下的已知部落也掃完 —— 一次部落查詢可以替掉好幾次個人查詢。
+    # 沒有人失蹤時完全不會發生，所以穩態下不多花任何一次呼叫。
+    if missing:
+        rest = {r["clan_tag"] for r in rows if r["clan_tag"]} - queried
+        if rest:
+            await scan(rest)
+            queried |= rest
+            missing = [t for t in missing if t not in found]
+
+    # 掃完所有已知部落還是找不到的，才真的要一個一個問
     if missing:
         found.update(await coc.get_players(missing))
 
@@ -240,8 +256,8 @@ async def sync_clans(conn) -> int:
         )
         updated += 1
     log.info(
-        "部落同步：%d 個過期，%d 個部落名單涵蓋 %d 人，%d 人逐一查詢，%d 個更新成功",
-        len(stale), len(clan_tags), len(stale) - len(missing), len(missing), updated,
+        "部落同步：%d 個過期，查了 %d 個部落涵蓋 %d 人，%d 人逐一查詢，%d 個更新成功",
+        len(stale), len(queried), len(stale) - len(missing), len(missing), updated,
     )
     return updated
 

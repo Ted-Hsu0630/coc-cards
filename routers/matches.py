@@ -3,11 +3,18 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from core import cards
 from routers.deps import get_conn, require_active_tag
-from services import coc, matching, players
+from services import coc, matching, planning, players
+
+# 多人計劃的成本大約是人數的平方（要看每一對的每個組合），而它是同步算在
+# 請求裡的。20 個人已經遠超一個部落實際會一起換卡的規模，設上限只是避免
+# 有人手動送一份很大的清單進來把單執行緒的伺服器卡住。
+MAX_PLAN_PLAYERS = 20
+MAX_PLAN_STEPS = 6
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["matches"])
@@ -45,6 +52,63 @@ async def get_matches(
         "missing": missing,
         "spares": spares,
         "matches": result,
+    }
+
+
+class PlanRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+    favor: str | None = None
+    max_steps: int = planning.MAX_STEPS_DEFAULT
+
+
+@router.post("/matches/plan")
+def plan_trades(
+    req: PlanRequest,
+    conn: sqlite3.Connection = Depends(get_conn),
+    tag: str = Depends(require_active_tag),
+):
+    """一群人之間的換卡計劃，分成可同時執行的步驟。
+
+    **不做部落同步。** 這支是使用者按下按鈕才算的，而計劃只吃收藏資料，
+    部落資訊在這裡完全用不到 —— 為了它去等一趟 CoC API 是白等。
+    """
+    everyone = players.all_players(conn)
+
+    # **不自動把自己加進去。** 幫部落其他人排一份計劃是合理的用法，硬塞會讓
+    # 使用者在畫面上取消勾選卻發現自己還在結果裡。去重是必要的：同一個 tag
+    # 送兩次的話他會變成可以跟自己交換。
+    wanted = list(dict.fromkeys(req.tags))
+    unknown = [t for t in wanted if t not in everyone]
+    if unknown:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "名單裡有查不到的村莊")
+    if len(wanted) < 2:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "至少要選兩個人")
+    if len(wanted) > MAX_PLAN_PLAYERS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"一次最多 {MAX_PLAN_PLAYERS} 人"
+        )
+    if req.favor is not None and req.favor not in wanted:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "優先對象不在名單裡")
+    steps = planning.plan(
+        players.all_collections(conn),
+        wanted,
+        max_steps=max(1, min(req.max_steps, MAX_PLAN_STEPS)),
+        favor=req.favor,
+    )
+    return {
+        "tag": tag,
+        "favor": req.favor,
+        "steps": steps,
+        "summary": planning.summarize(steps),
+        # 前端只拿得到 tag，名字與庫存新舊度都要從這裡帶過去
+        "players": {
+            t: {
+                "name": everyone[t]["name"],
+                "clan_name": everyone[t]["clan_name"],
+                "collection_updated_at": everyone[t].get("collection_updated_at"),
+            }
+            for t in wanted
+        },
     }
 
 

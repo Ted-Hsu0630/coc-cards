@@ -92,6 +92,7 @@ docker compose up -d
 assets/cards.json    卡表（60 張）。名字打錯不影響配對，改這裡即可
 assets/digits/       徽章數字模板（截圖辨識用）
 assets/art/          卡面模板（只在視窗二選一時當裁判）
+assets/icon-master.png  PWA 圖示的裁切母圖（tools/make_icons.py 用）
 data/                Docker volume，只放資料庫 —— 靜態檔案放這裡不會生效
 
 core/cards.py        卡表載入 + 啟動時的結構驗證
@@ -124,3 +125,18 @@ samples/             辨識測資
 
 過程中推翻了自己三個看起來很漂亮的結論，理由都寫在
 [tools/FINDINGS.md](tools/FINDINGS.md)。
+
+## 加到主畫面
+
+`web/manifest.webmanifest` 讓網站可以加到手機主畫面，開起來沒有網址列
+（`display: standalone`）。**刻意不做 Service Worker** —— 這個站的資料是即時的，
+離線打開等於沒用；代價是 Android Chrome 不會主動跳安裝橫幅，要從選單手動加。
+
+圖示由 [tools/make_icons.py](tools/make_icons.py) 從 `assets/icon-master.png`
+產生，構圖參數在那支腳本裡。
+
+## 美術素材
+
+卡面、活動主視覺與圖示取自《部落衝突》遊戲畫面，版權屬 Supercell。
+本專案為非商業的同人工具，依 [Supercell Fan Content Policy](https://supercell.com/en/fan-content-policy/)
+使用，與 Supercell 無關，也未經其背書。

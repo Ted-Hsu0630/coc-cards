@@ -29,11 +29,11 @@
   <section id="view-login" class="view">
     <div class="card intro">
       <h1>卡牌衝突 換卡配對</h1>
-      <p>登記自己缺什麼、多什麼，自動算出部落裡跟誰換、換哪張。</p>
+      <p>登記缺什麼、多什麼，自動算出跟誰換、換哪張。</p>
     </div>
 
     <form id="loginForm" class="card">
-      <h2>驗證你的村莊</h2>
+      <h2>驗證村莊</h2>
       <label>村莊標籤
         <input id="tagInput" name="tag" placeholder="#XXXXXXXXX" autocapitalize="characters"
                autocomplete="off" spellcheck="false" required>
@@ -67,10 +67,10 @@
     <div class="card">
       <label class="switch">
         <input type="checkbox" id="sameClanOnly" checked>
-        <span>只顯示同部落（不同部落換不了）</span>
+        <span>只顯示同部落</span>
       </label>
       <p class="hint" id="matchSummary">—</p>
-      <p class="warn" id="syncWarn" hidden>部落資訊同步失敗，以下顯示的是快取資料，可能已過時。</p>
+      <p class="warn" id="syncWarn" hidden>部落資訊同步失敗，以下為舊資料。</p>
     </div>
     <div id="matchBody"></div>
   </section>
@@ -91,8 +91,8 @@
     <form id="importForm" class="card">
       <h2>用截圖填收藏</h2>
       <p class="hint">
-        在遊戲裡打開卡牌衝突的相簿，由上往下捲、每頁拍一張，
-        <b>5 張就拍得完 60 格</b>。相簿以外的畫面會被自動略過。
+        打開相簿，由上往下每頁拍一張，<b>5 張拍完 60 格</b>。
+        相簿以外的畫面會自動略過。
       </p>
       <!-- 張數由 /api/import/available 填入，不要寫死：後端改了 MAX_IMAGES
            之後這裡會繼續講舊數字，而使用者要等到上傳被拒絕才發現。 -->
@@ -100,7 +100,7 @@
         <input id="importFiles" type="file" accept="image/*" multiple>
       </label>
       <button type="submit" class="primary" id="importBtn" disabled>開始辨識</button>
-      <p class="hint">辨識完會先讓你核對，<b>確認之前不會動到你的收藏</b>。</p>
+      <p class="hint">辨識結果需經確認，<b>確認前不會變更收藏</b>。</p>
       <p class="error" id="importError" hidden></p>
     </form>
 
@@ -115,15 +115,14 @@
       <div class="card" id="importNeedsCard" hidden>
         <h2 id="importNeedsTitle"></h2>
         <p class="hint">
-          辨識不出來的格子<b>刻意留白</b>，不會猜一個數字給你。
-          不填的話會維持目前資料庫裡的值。
+          認不出的格子<b>留白</b>，不會猜。不填則保持原樣。
         </p>
         <div id="importNeeds"></div>
       </div>
 
       <div class="card">
         <h2>讀出來的</h2>
-        <p class="hint">這些會覆蓋你目前的收藏。有讀錯的話直接在這裡改。</p>
+        <p class="hint">將覆蓋目前的收藏，可直接修改。</p>
         <div id="importRead"></div>
       </div>
 
@@ -140,7 +139,7 @@
     <div id="villageList"></div>
     <form id="addForm" class="card">
       <h2>加綁另一個村莊</h2>
-      <p class="hint">小號要各自通過權杖驗證。綁定後可在上方切換，不用重新登入。</p>
+      <p class="hint">小號需各自驗證。綁定後可在上方切換。</p>
       <label>村莊標籤
         <input id="addTag" placeholder="#XXXXXXXXX" autocapitalize="characters"
                autocomplete="off" spellcheck="false" required>
@@ -166,21 +165,19 @@
       <img src="/static/img/token-1-settings.jpg" alt="村莊畫面右下角的齒輪按鈕" loading="lazy">
     </li>
     <li>
-      <p>拉到設定視窗最下面，點<b>更多設定</b>。</p>
+      <p>捲到最下面，點<b>更多設定</b>。</p>
       <img src="/static/img/token-2-more.jpg" alt="設定視窗底部的「更多設定」按鈕" loading="lazy">
       <p class="hint">
-        順帶一提，<b>村莊標籤</b>就在這個設定視窗最上方的 Supercell ID 那一列，
-        <code>#</code> 開頭那串。
+        <b>村莊標籤</b>在同一個視窗最上方的 Supercell ID 那一列，<code>#</code> 開頭那串。
       </p>
     </li>
     <li>
-      <p>找到 <b>API Token</b> 區塊，點<b>顯示</b>，把出現的 8 碼複製起來。</p>
+      <p>找到 <b>API Token</b>，點<b>顯示</b>，複製出現的 8 碼。</p>
       <img src="/static/img/token-3-show.jpg" alt="更多設定裡 API Token 的「顯示」按鈕" loading="lazy">
     </li>
   </ol>
   <p class="hint">
-    本站只拿這組權杖<b>驗證一次</b>，不會儲存它。權杖在遊戲裡會定期更換，
-    如果驗證失敗，回遊戲重新<b>顯示</b>一次拿最新的。
+    僅用於<b>驗證帳號所有權</b>，不會儲存。權杖會定期更換，驗證失敗請回遊戲重新<b>顯示</b>。
   </p>
 </template>
 

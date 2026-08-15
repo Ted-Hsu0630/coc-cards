@@ -74,7 +74,7 @@ def create_app() -> FastAPI:
                     too_large = True
                 if too_large:
                     return JSONResponse(
-                        {"detail": f"請求太大（上限 {limit // 1024} KB）"},
+                        {"detail": "檔案太大"},
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     )
         return await call_next(request)

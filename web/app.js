@@ -219,25 +219,25 @@ async function loadMatches() {
   $("#syncWarn").hidden = data.clan_sync_ok !== false;
   $("#matchSummary").textContent =
     `已收集 ${data.collected}/${state.cards.length}　缺 ${data.missing.length} 張　` +
-    `可送出 ${data.spares.length} 種　資料庫共 ${data.total_players} 人`;
+    `可送出 ${data.spares.length} 種　已建表 ${data.total_players} 人`;
 
   body.textContent = "";
   if (!data.matches.length) {
     body.append(
       el("div", "empty", data.total_players <= 1
-        ? "資料庫裡還沒有其他人。把網址分享給部落成員，等他們建好表就會出現配對。"
-        : "目前沒有可成立的交換。等對方更新收藏後再回來看看。")
+        ? "還沒有其他人建表。把網址分享給部落成員。"
+        : "目前沒有可成立的交換。")
     );
     return;
   }
   for (const m of data.matches) body.append(renderMatch(m));
 }
 
-const KIND_LABEL = { mutual: "互利互換", incoming: "我受益", outgoing: "我幫人" };
+const KIND_LABEL = { mutual: "互惠", incoming: "我受益", outgoing: "我幫忙" };
 const INITIATOR_LABEL = {
-  either: "誰先開口都可以",
-  me: "要由你在部落聊天室發起",
-  them: "要由對方發起",
+  either: "雙方皆可發起",
+  me: "由你發起",
+  them: "由對方發起",
 };
 
 function renderMatch(m) {
@@ -284,8 +284,8 @@ function renderSwap(s) {
   // 單向交換時清單是按張數展開的（同一張多份會重複），備選要去重才不會洗版
   const restGive = [...new Set(s.i_give.slice(s.trades))];
   const restGet = [...new Set(s.i_get.slice(s.trades))];
-  if (restGive.length) box.append(altRow("送出也可改用", restGive, "give"));
-  if (restGet.length) box.append(altRow("收到也可改挑", restGet, "get"));
+  if (restGive.length) box.append(altRow("送出可改用", restGive, "give"));
+  if (restGet.length) box.append(altRow("收到可改挑", restGet, "get"));
   return box;
 }
 
@@ -352,7 +352,7 @@ function renderVillages() {
 
   if (many) {
     const tip = el("div", "card");
-    tip.append(el("p", "hint", "拖曳左側握把可調整順序，上方切換村莊的選單會跟著這個順序。"));
+    tip.append(el("p", "hint", "拖曳左側握把可調整順序。"));
     list.append(tip);
   }
 
@@ -376,7 +376,7 @@ function renderVillages() {
     if (many) {
       const btn = el("button", "ghost", "解除綁定");
       btn.addEventListener("click", async () => {
-        if (!confirm(`解除綁定 ${p.name}？該村莊的收藏紀錄會一併刪除。`)) return;
+        if (!confirm(`解除綁定 ${p.name}？收藏紀錄會一併刪除。`)) return;
         await api(`/api/players/${encodeURIComponent(p.tag)}`, { method: "DELETE" });
         await boot();
         show("villages");
@@ -477,7 +477,7 @@ $("#addForm").addEventListener("submit", async (e) => {
     $("#addToken").value = "";
     if (r.migrated) {
       // 這個村莊本來是獨立帳號，剛剛被併進來。收藏是照 tag 存的，所以原封不動。
-      alert(`已把「${r.player.name}」從原本的獨立帳號搬過來，收藏紀錄都還在。`);
+      alert(`已將「${r.player.name}」併入此帳號，收藏保留。`);
     }
     await boot();
     show("collection");
@@ -499,7 +499,7 @@ const IMPORT_STATE = {
   read: { label: "讀出來了", cls: "ok" },
   unknown: { label: "認不出", cls: "warn" },
   conflict: { label: "兩張截圖不一致", cls: "bad" },
-  uncovered: { label: "沒有截圖拍到", cls: "dim" },
+  uncovered: { label: "沒拍到", cls: "dim" },
 };
 
 // 這格最後會寫進去的值。使用者沒選就沿用資料庫現值 ——
@@ -541,7 +541,7 @@ function importRow(row, onPick) {
   if (row.note) left.append(el("p", "hint", row.note));
   if (row.state !== "read") {
     const cur = row.current === null || row.current === undefined ? 0 : row.current;
-    left.append(el("p", "hint", `不填的話維持目前的 ${cur} 張`));
+    left.append(el("p", "hint", `不填維持 ${cur} 張`));
   }
 
   wrap.append(left, importCountSelect(row, onPick));
@@ -557,7 +557,7 @@ function renderImport(data) {
   for (const f of data.files) {
     const li = el("li", f.ok ? "ok" : "bad");
     if (f.ok) {
-      const exact = f.exact ? "" : "（顏色排列不完全吻合，位置把握較低）";
+      const exact = f.exact ? "" : "（位置較不確定，建議核對）";
       li.textContent = `${f.name} —— 相簿第 ${f.range[0]}~${f.range[1]} 張${exact}`;
     } else {
       li.textContent = `${f.name} —— 不採用：${f.reason}`;
@@ -579,7 +579,7 @@ function redrawImport() {
   sum.textContent = "";
   sum.append(el("h2", null, `60 張裡讀出 ${s.read} 張`));
   if (left > 0) {
-    sum.append(el("p", "warn", `還有 ${left} 張沒有值，這些會維持你目前的收藏不變。`));
+    sum.append(el("p", "warn", `還有 ${left} 張沒有值，將保持原樣。`));
   } else {
     sum.append(el("p", "hint", "全部都有值了。"));
   }
@@ -598,9 +598,9 @@ function redrawImport() {
   const bad = compared.filter((g) => g.owned !== g.expected);
 
   if (compared.length && !bad.length) {
-    chk.append(el("p", "ok-note", `已跟遊戲畫面的進度條核對過 ${compared.length} 個系列，數字都對得上。`));
+    chk.append(el("p", "ok-note", `已與進度條核對 ${compared.length} 個系列，數字相符。`));
   } else if (bad.length) {
-    chk.append(el("p", "error", "跟遊戲畫面的進度條對不上，這批結果有問題，請逐格檢查："));
+    chk.append(el("p", "error", "與進度條不符，請逐格檢查："));
   } else {
     chk.append(el("p", "hint", "各系列已擁有張數（進度條讀不到，無法自動核對）："));
   }

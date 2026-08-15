@@ -14,11 +14,14 @@
 """
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 BASE = Path(__file__).resolve().parent.parent
 
@@ -75,6 +78,11 @@ GLYPH_MIN_CARD_H = 110
 PITCH_RATIO = (1.25, 1.65)
 MIN_COLOR_MATCH = 0.85      # 12 格容許 1 格系列讀錯
 MAX_ROWS = 4
+
+# 「這張圖根本不是相簿」的統一說法。幾何檢查有三種不同的失敗方式，但對使用者
+# 都是同一個動作 —— 換一張圖。精確的原因寫進日誌（見 recognize()），畫面上不
+# 需要知道是「排不出 6 欄」還是「欄距比例不對」。
+NOT_ALBUM = "這張不是相簿畫面"
 
 
 @dataclass
@@ -599,11 +607,15 @@ def recognize(img, digits=None, art=None) -> Result:
     art = load_art() if art is None else art
     boxes = grid(img)
     if not boxes:
-        return Result(False, "找不到相簿的 6 欄卡片格線")
+        log.info("辨識拒絕：切不出格線")
+        return Result(False, NOT_ALBUM)
 
     bad = check_geometry(boxes)
     if bad:
-        return Result(False, bad)
+        # 三種幾何失敗對使用者是同一件事（換一張圖），但對除錯完全不同。
+        # 精確的原因進日誌，畫面上只留一句看得懂的。
+        log.info("辨識拒絕：%s", bad)
+        return Result(False, NOT_ALBUM)
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     # 完整卡片的高度。card_boxes 保證至少有一整列沒被切，所以取最大值就對了
@@ -615,7 +627,7 @@ def recognize(img, digits=None, art=None) -> Result:
         owned, _ = cell_owned(hsv, box, clip, h_full)
 
         if owned is None:
-            cells.append(Cell(box, series, False, False, None, "被切太多，判不出有沒有擁有", clip))
+            cells.append(Cell(box, series, False, False, None, "被切掉太多", clip))
             continue
 
         if clip == "bottom":
@@ -624,7 +636,7 @@ def recognize(img, digits=None, art=None) -> Result:
             # 徽章可能只是被畫面切掉了。寧可回報認不出，也不要猜成 1 張。
             has_badge = False
             count = 0 if not owned else None
-            note = "" if not owned else "下緣被切到，看不到徽章"
+            note = "" if not owned else "底部被切到，看不到數量"
         elif not owned:
             has_badge, count, note = False, 0, ""
         else:
@@ -632,10 +644,10 @@ def recognize(img, digits=None, art=None) -> Result:
             has_badge = glyphs is not None
             if has_badge:
                 count = read_glyph_count(glyphs, digits)
-                note = "" if count else "徽章數字認不出來"
+                note = "" if count else "數量認不出來"
             elif h_full < GLYPH_MIN_CARD_H:
                 # 圖片太小，字形本來就切不出來，這時「沒字形」不代表「沒徽章」
-                count, note = None, "圖片太小，分不出 1 張還是多張"
+                count, note = None, "圖片太小，看不出數量"
             else:
                 count, note = 1, ""
         cells.append(Cell(box, series, owned, has_badge, count, note, clip))
@@ -645,7 +657,7 @@ def recognize(img, digits=None, art=None) -> Result:
     if match < MIN_COLOR_MATCH:
         # 顏色排列對不上任何一個候選視窗 —— 這就不是相簿畫面。
         # 實測村莊畫面只有 39%，真相簿全部 100%。
-        return Result(False, f"邊框顏色排列只吻合 {match:.0%}，對不上相簿的任何一段")
+        return Result(False, "認不出這是相簿的哪一段，可能拍到一半或被擋住")
 
     return Result(True, "", start, hit, tied, cells, exact=(hit == len(cells)))
 

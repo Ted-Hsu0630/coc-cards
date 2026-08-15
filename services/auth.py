@@ -109,7 +109,7 @@ async def verify_and_bind(conn, raw_tag: str, token: str, user_id: int | None) -
         # 不分清楚的話，標籤打錯的人會一直回遊戲重抓權杖卻永遠過不了。
         # 多打一次 GET /players 來區分 —— 只在失敗路徑上付這個成本。
         await coc.get_player(tag)  # 標籤不存在會拋 PlayerNotFound
-        raise VerificationFailed("權杖不正確。村莊標籤是對的，請回遊戲重新顯示一次權杖")
+        raise VerificationFailed("權杖不正確，請回遊戲重新顯示一次")
 
     info = await coc.get_player(tag)
 

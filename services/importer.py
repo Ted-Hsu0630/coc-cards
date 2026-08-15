@@ -90,10 +90,10 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
         try:
             img = _load(data)
         except ImageTooLarge:
-            entry["reason"] = "圖片尺寸過大，請用原始截圖不要放大"
+            entry["reason"] = "圖片解析度太高，請用原始截圖"
             continue
         if img is None:
-            entry["reason"] = "這不是能讀取的圖片檔"
+            entry["reason"] = "不是圖片檔"
             continue
         r = R.recognize(img, digits=digits, art=art)
         entry["ok"], entry["reason"] = r.ok, r.reason
@@ -144,7 +144,7 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
             values = {v for v, _, _ in obs if v is not None}
             if len(values) > 1:
                 row["state"] = "conflict"
-                row["note"] = "不同截圖讀到不一樣的張數：" + "、".join(
+                row["note"] = "兩張截圖不一致：" + "、".join(
                     f"{n}={v}" for v, n, _ in obs if v is not None
                 )
             elif values:
@@ -152,7 +152,7 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
                 row["value"] = values.pop()
             else:
                 row["state"] = "unknown"
-                row["note"] = next((note for _, _, note in obs if note), "讀不出來")
+                row["note"] = next((note for _, _, note in obs if note), "認不出")
         out.append(row)
 
     need = [r for r in out if r["state"] != "read"]
@@ -191,7 +191,7 @@ def _series_owned(rows, bars: dict[str, list] | None = None) -> list[dict]:
         if len(seen_vals) == 1:
             expected = seen_vals.pop()[0]
         elif len(seen_vals) > 1:
-            bar_note = "不同截圖的進度條數字不一致，可能混到別人的截圖了"
+            bar_note = "進度條數字互相矛盾，可能混到別人的截圖"
         out.append({
             "key": key,
             "name": s["name_zh"],

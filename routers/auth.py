@@ -1,5 +1,6 @@
 """登入、村莊綁定與切換。"""
 
+import logging
 import sqlite3
 
 from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Request, Response, status
@@ -9,7 +10,14 @@ import config
 from routers.deps import get_conn, optional_session, require_session
 from services import auth, coc, players, ratelimit
 
+log = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["auth"])
+
+# CoC API 的失敗有五種（金鑰過期、IP 不在白名單、限流、5xx、連不上），但對使用者
+# 都是同一件事：現在驗證不了，等一下再試。狀態碼與 reason 是拿來除錯的，寫進
+# 日誌就好 —— 尤其「IP 不在白名單」是站方要處理的，部落成員看了也做不了什麼。
+UPSTREAM_DOWN = "遊戲伺服器連線失敗，請稍後再試"
 
 # 只有 verify 需要 —— 其餘端點不會打 CoC API，也就沒有配額可燒。
 verify_limiter = ratelimit.RateLimiter()
@@ -47,11 +55,14 @@ async def verify(
     except players.TagAlreadyBound as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
     except coc.PlayerNotFound as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "查無此村莊標籤") from e
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "查無此標籤") from e
     except coc.CocAuthError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+        # 這一條幾乎都是站方的設定問題（金鑰過期或對外 IP 變了），要看得見。
+        log.error("CoC API 認證失敗：%s", e)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, UPSTREAM_DOWN) from e
     except coc.CocError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"CoC API 暫時無法使用：{e}") from e
+        log.warning("CoC API 失敗：%s", e)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, UPSTREAM_DOWN) from e
 
     if sess is None:
         token = auth.create_session(conn, result["user_id"], result["tag"])
@@ -108,7 +119,7 @@ def set_active(
     tag = players.normalize_tag(tag)
     owned = {p["tag"] for p in players.players_of_user(conn, sess["user_id"])}
     if tag not in owned:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "這個村莊不屬於你的帳號")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "此村莊不屬於你")
     auth.set_active_tag(conn, sess["token"], tag)
     return {"active_tag": tag}
 
@@ -129,7 +140,7 @@ def set_order(
     # 必須「剛好」是自己持有的那一組：少一個會留下沒排到的村莊，
     # 多一個或重複則會把別人的村莊寫進來
     if len(wanted) != len(owned) or set(wanted) != owned:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "順序清單必須剛好包含你所有的村莊")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "排序失敗，請重新整理")
 
     players.set_order(conn, sess["user_id"], wanted)
     return {"players": [p["tag"] for p in players.players_of_user(conn, sess["user_id"])]}
@@ -143,7 +154,7 @@ def unbind(
 ):
     tag = players.normalize_tag(tag)
     if not players.unbind_player(conn, tag, sess["user_id"]):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到這個村莊")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "查無此村莊")
     if sess.get("active_tag") == tag:
         rest = players.players_of_user(conn, sess["user_id"])
         auth.set_active_tag(conn, sess["token"], rest[0]["tag"] if rest else None)

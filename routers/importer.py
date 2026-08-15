@@ -36,11 +36,11 @@ async def import_screenshots(
     tag: str = Depends(require_active_tag),
 ):
     if not importer.available():
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "這台伺服器沒有安裝辨識所需的套件")
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "截圖辨識目前無法使用")
     if len(files) > importer.MAX_IMAGES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"一次最多 {importer.MAX_IMAGES} 張（相簿只有 60 張卡，5 張截圖就拍得完）",
+            f"一次最多 {importer.MAX_IMAGES} 張",
         )
 
     payload = []

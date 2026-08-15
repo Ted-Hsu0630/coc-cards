@@ -87,7 +87,7 @@ def test_壓縮炸彈被擋成一句友善的拒絕而不是_500():
 
     entry = importer.analyze([("bomb.png", bomb)])["files"][0]
     assert entry["ok"] is False
-    assert "尺寸過大" in entry["reason"]
+    assert "解析度" in entry["reason"]
 
 
 def test_畫面上的張數跟後端同一個來源(client):

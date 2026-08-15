@@ -113,8 +113,8 @@ def adopt_player(conn, tag: str, target_user_id: int) -> bool:
     if others:
         names = "、".join(r["name"] for r in others)
         raise TagAlreadyBound(
-            f"{tag} 所屬的帳號底下還有其他村莊（{names}），不能只搬這一個。"
-            "請先登出，用那個帳號登入後解除綁定，再回來加綁。"
+            f"{tag} 的帳號底下還有其他村莊（{names}）。"
+            "請先登出，用那個帳號登入解除綁定，再回來加綁。"
         )
 
     # 先搬村莊再刪來源帳號 —— 順序反過來的話 players 會被外鍵 CASCADE 一起刪掉。
@@ -150,10 +150,10 @@ def save_collection(conn, tag: str, counts: dict[str, int]) -> dict[str, int]:
     clean: dict[str, int] = {}
     for card_id, raw in counts.items():
         if card_id not in valid:
-            raise ValueError(f"未知的卡片 id：{card_id}")
+            raise ValueError("卡片資料有誤，請重新整理")
         n = int(raw)
         if n < 0 or n > config.MAX_COUNT:
-            raise ValueError(f"{card_id} 的張數 {n} 超出 0..{config.MAX_COUNT}")
+            raise ValueError(f"張數只能填 0 到 {config.MAX_COUNT}")
         if n > 0:
             clean[card_id] = n
 

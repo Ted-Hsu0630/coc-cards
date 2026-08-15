@@ -3,7 +3,8 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 
 import config
 from core import cards, db
@@ -12,6 +13,20 @@ from routers import auth, collection, matches
 from routers import importer as import_router
 from services import auth as auth_service
 from services import coc
+from services import importer as importer_service
+
+# 這個站的 API 除了截圖上傳以外都很小 —— 最大的 `PUT /api/collection` 也只是
+# 60 個整數。設上限是為了讓惡意的超大 body 在讀進記憶體之前就被擋掉：這台機器
+# 只有 7GB，而且要跟 camera-viewer 的 24 小時錄影共用。
+MAX_API_BODY_BYTES = 256 * 1024
+
+# 截圖上傳是唯一的例外。上限直接由 importer 的兩個常數推導，不要各寫各的 ——
+# 分開寫的話改了一邊另一邊會安靜地失去意義。多留 64KB 給 multipart 的分隔線
+# 與各段的標頭。
+IMPORT_PATH = "/api/import/screenshots"
+MAX_IMPORT_BODY_BYTES = (
+    importer_service.MAX_IMAGES * importer_service.MAX_IMAGE_BYTES + 64 * 1024
+)
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +52,32 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="coc-cards", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+    @app.middleware("http")
+    async def limit_api_body(request: Request, call_next):
+        """超過上限的請求在讀取 body 之前就回絕。
+
+        只看 `Content-Length`，所以擋不住 chunked transfer-encoding（那種請求
+        根本沒有這個標頭）。**這不是唯一的防線**，也不該是 —— 真正有界的保證
+        在 `routers/importer.py` 逐檔 `read(MAX+1)` 與 `services/__init__.py`
+        的像素上限那兩層。這一層的價值是讓最常見的攻擊在最便宜的地方就停下。
+
+        解析不出來的 Content-Length 一律當成太大：合法的客戶端不會送出這種值。
+        """
+        if request.url.path.startswith("/api/"):
+            limit = MAX_IMPORT_BODY_BYTES if request.url.path == IMPORT_PATH else MAX_API_BODY_BYTES
+            raw = request.headers.get("content-length")
+            if raw is not None:
+                try:
+                    too_large = int(raw) > limit
+                except ValueError:
+                    too_large = True
+                if too_large:
+                    return JSONResponse(
+                        {"detail": f"請求太大（上限 {limit // 1024} KB）"},
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    )
+        return await call_next(request)
 
     @app.middleware("http")
     async def no_store_api(request: Request, call_next):

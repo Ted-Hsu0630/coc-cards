@@ -40,7 +40,11 @@ async def import_screenshots(
 
     payload = []
     for f in files:
-        payload.append((f.filename or "未命名", await f.read()))
+        # **不要改回無參數的 read()。** 那會把整個檔案讀進記憶體才發現太大，
+        # 而這是唯一收使用者上傳的端點。多讀 1 byte 就足以判斷有沒有超過，
+        # 真正的拒絕交給 importer.analyze()（它要逐檔回報原因）。
+        # 跟 All-in-One Downloader 的 .torrent 端點是同一招。
+        payload.append((f.filename or "未命名", await f.read(importer.MAX_IMAGE_BYTES + 1)))
     if not payload:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "沒有收到檔案")
 

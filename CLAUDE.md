@@ -55,6 +55,16 @@
     與徽章金色是同一個色相區間，前提根本不成立；JPEG 壓縮又會讓邊框色
     溢出卡片下緣。詳見 `tools/FINDINGS.md`。
 
+12. **`services/__init__.py` 裡設像素上限的那幾行不可以搬走，也不可以清空那個檔案。**
+    `OPENCV_IO_MAX_IMAGE_PIXELS` 只在 `import cv2` 之前設才有效，而
+    `recognize.py` 與 `progress.py` 都在模組層級 import cv2。父套件的
+    `__init__.py` 是唯一在 web app、`tools/`、pytest 三條路徑都保證跑在前面的
+    位置。搬走不會有錯誤訊息，只是安靜地退回 OpenCV 的預設值（2³⁰ 像素，
+    單張就能吃掉 3.2GB）。
+    上限 24 Mpx 與 `MAX_IMAGES = 8` 是**一起**決定的：`analyze()` 會同時持有
+    整批解碼後的點陣圖，8 × 72MB = 576MB 是這台 7GB 機器（還要跟 NVR 共用）
+    的預算。改任一邊都要重算，`tests/test_limits.py` 守著那道乘法。
+
 ## 卡表
 
 `assets/cards.json`。名字有 `confirmed` 欄位，`false` 代表還沒跟遊戲畫面核對過，

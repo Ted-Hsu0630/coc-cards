@@ -23,7 +23,11 @@ from core import cards as cards_mod
 log = logging.getLogger(__name__)
 
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
-MAX_IMAGES = 12
+# 相簿只有 60 張卡、一次拍得到 12 格，5 張截圖就涵蓋得完，8 張是給重拍與
+# 部分重疊的餘裕。**這個數字直接決定記憶體天花板**：analyze() 會同時持有
+# 整批解碼後的點陣圖，而單張的上限是 services/__init__.py 設的 24 Mpx，
+# 所以最壞情況是 8 x 72MB = 576MB。要調大先去看那份說明。
+MAX_IMAGES = 8
 
 
 def available() -> bool:
@@ -36,12 +40,26 @@ def available() -> bool:
     return True
 
 
+class ImageTooLarge(ValueError):
+    """解碼後的尺寸超過 `OPENCV_IO_MAX_IMAGE_PIXELS`（見 services/__init__.py）。
+
+    跟「這不是圖片檔」要分開回報：使用者看到「尺寸過大」才知道該去縮圖，
+    看到「不是圖片檔」只會一直重傳同一個檔案。
+    """
+
+
 def _load(data: bytes):
     import cv2
     import numpy as np
 
     buf = np.frombuffer(data, np.uint8)
-    return cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    try:
+        return cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    except cv2.error as e:
+        # 超過像素上限時 OpenCV 是**丟例外**，不是回 None（實測 OpenCV 5.0：
+        # `(-215:Assertion failed) pixels <= CV_IO_MAX_IMAGE_PIXELS`）。
+        # 少了這個 except，一張壓縮炸彈就是一個 500 而不是一句友善的拒絕。
+        raise ImageTooLarge(str(e)) from e
 
 
 def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = None) -> dict:
@@ -65,9 +83,15 @@ def analyze(files: list[tuple[str, bytes]], existing: dict[str, int] | None = No
         entry = {"name": name, "ok": False, "reason": ""}
         report.append(entry)
         if len(data) > MAX_IMAGE_BYTES:
-            entry["reason"] = f"檔案太大（{len(data) / 1e6:.1f} MB）"
+            # 不印實際大小：路由層是用 read(MAX+1) 截斷讀進來的，這裡的
+            # len(data) 只會是 MAX+1，印出來會嚴重低報真正上傳的量。
+            entry["reason"] = f"檔案太大（超過 {MAX_IMAGE_BYTES // 1024 // 1024} MB）"
             continue
-        img = _load(data)
+        try:
+            img = _load(data)
+        except ImageTooLarge:
+            entry["reason"] = "圖片尺寸過大，請用原始截圖不要放大"
+            continue
         if img is None:
             entry["reason"] = "這不是能讀取的圖片檔"
             continue

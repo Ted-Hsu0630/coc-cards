@@ -358,6 +358,64 @@ def test_單張整片聖水靠卡面比對定位(name):
     assert margin > 0.15, f"{name} 兩個候選只差 {margin:.3f}，太接近了"
 
 
+def _by_id(r):
+    ids = R.album_ids()
+    return {ids[r.start + i]: c for i, c in enumerate(r.cells) if r.start + i < len(ids)}
+
+
+def _resolved(name):
+    img = _img(name)
+    r = R.recognize(img)
+    R.resolve_batch([r], images=[img], art=R.load_art())
+    return r
+
+
+def test_灰色美術的卡不會被判成沒擁有():
+    """加農炮戰車是灰色金屬砲管，只有背景與底部繩索有顏色。
+
+    用第 95 百分位量只有 39，門檻 40 就差一分被判成沒擁有 ——
+    而「有卡卻讀成沒有」是會靜默寫錯資料的方向。
+
+    它是擁有的這件事不必靠肉眼：畫面上進度條寫建築 8/11，這張截圖涵蓋
+    builder-05~11，視窗外只剩 builder-01~04 四張，所以視窗內至少要有 4 張。
+    少了加農炮戰車就只剩 3 張，算術上湊不到 8。
+    """
+    r = _resolved("IMG_4996")
+    cell = _by_id(r)["builder-07"]
+    assert cell.owned, "加農炮戰車被判成沒擁有"
+    assert cell.count == 1
+
+    ids = R.album_ids()
+    owned = sum(1 for i, c in enumerate(r.cells)
+                if ids[r.start + i].startswith("builder") and c.owned)
+    assert owned >= 4, f"進度條說建築 8/11，視窗內至少要 4 張才湊得出來，實際只有 {owned}"
+
+
+def test_擁有判定的分離間隙夠寬():
+    """釘住「用哪個統計量」這個決定，而不只是釘住結論。
+
+    S95 曾經讓加農炮戰車以 39 對 40 落敗。改用 S99 之後間隙拉開到 111，
+    哪天有人為了別的理由把百分位調回去，這裡會先炸。
+    """
+    owned_lo, unowned_hi = 255.0, 0.0
+    for name in ALBUM:
+        img = _img(name)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        boxes = R.grid(img)
+        hf = max(b[3] for b, _ in boxes)
+        for (box, clip), truth in zip(boxes, GT[name]["counts"], strict=True):
+            if truth is None or clip:
+                continue                      # 被切的格子另有規則
+            _, sat = R.cell_owned(hsv, box, clip, hf)
+            if truth > 0:
+                owned_lo = min(owned_lo, sat)
+            else:
+                unowned_hi = max(unowned_hi, sat)
+
+    assert unowned_hi == 0, f"未擁有的卡應該是真灰階，實際量到 {unowned_hi}"
+    assert owned_lo > R.OWNED_SAT * 2, f"已擁有最低 {owned_lo}，離門檻 {R.OWNED_SAT} 太近"
+
+
 def test_整批格子都被切時卡面比對不會失效():
     """art_score 跳過被切的格子，但整批都被切時必須退回全部算 ——
     不然每個候選都拿不到分數，比較就變成「挑第一個」而不是挑最像的。"""

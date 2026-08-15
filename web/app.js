@@ -351,7 +351,10 @@ async function loadClan() {
   const table = el("table");
   const thead = el("thead");
   const hr = el("tr");
-  for (const h of ["玩家", "部落", "已收集", "庫存更新"]) hr.append(el("th", null, h));
+  // 欄位的 class 要跟底下的 td 一致，否則對齊與欄寬只作用在資料列，表頭會歪掉。
+  for (const [label, cls] of [["玩家", null], ["部落", null], ["已收集", "num"], ["庫存更新", "when"]]) {
+    hr.append(el("th", cls, label));
+  }
   thead.append(hr);
   table.append(thead);
 
@@ -364,7 +367,7 @@ async function loadClan() {
     tr.append(clan);
     tr.append(el("td", "num", p.has_data ? `${p.collected}/${p.total}` : "未建表"));
 
-    const upd = el("td", "num", p.has_data ? lastUpdated(p.collection_updated_at) : "—");
+    const upd = el("td", "when", p.has_data ? lastUpdated(p.collection_updated_at) : "—");
     if (p.has_data && isStale(p.collection_updated_at)) upd.classList.add("stale");
     tr.append(upd);
     tbody.append(tr);

@@ -195,7 +195,17 @@ code {
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
 th { color: var(--dim); font-weight: 500; font-size: 13px; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 「26 分鐘前」是文字不是數字，靠左才跟其他欄一致。
+   width: 1% 配 nowrap 是把欄位縮到剛好容納內容的老招 —— 表格是 auto layout，
+   長名字（「楓葉荻花秋瑟瑟@_@」）會把玩家欄撐開，把窄欄擠到折成兩行。
+   給它 1% 等於宣告「我只要最小寬度」，瀏覽器就會先滿足 nowrap 再把剩下的
+   寬度分給玩家欄。寫死 px 會在不同字數的時間字串上失準。
+
+   這兩欄要一起加 nowrap：只給時間欄的話，被搶走寬度的換成「已收集」，
+   表頭會變成「已收／集」兩行。 */
+th.num, td.num, th.when, td.when { white-space: nowrap; width: 1%; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+th.when, td.when { text-align: left; }
 
 .empty { color: var(--dim); text-align: center; padding: 28px 12px; }
 

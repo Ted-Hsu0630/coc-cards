@@ -5,12 +5,32 @@
 不要跟 players.updated_at（部落同步整批寫入的）混在一起。
 """
 
+import re
 import sqlite3
 
 import pytest
 
+import config
 from core import db
 from services import players
+
+
+def _css_declarations(css):
+    """回傳 {選擇器: 宣告字串}。
+
+    比對整份檔案的字串太脆 —— 換行、排序、加註解都會誤判。這裡把規則拆開，
+    只看「某個選擇器有沒有某個宣告」。
+    """
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    out = {}
+    for rule in css.split("}"):
+        sel, _, body = rule.partition("{")
+        if not body:
+            continue
+        for s in sel.split(","):
+            out.setdefault(s.strip(), "")
+            out[s.strip()] += body
+    return out
 
 
 def _login(client, tag="#AAA"):
@@ -105,6 +125,29 @@ def test_舊資料庫升級後欄位存在且不被回填(tmp_path, monkeypatch)
     assert "collection_updated_at" in cols, "欄位沒有被加上去"
     assert r["collection_updated_at"] is None, "不該拿別的欄位回填"
     assert r["updated_at"] == "2026-08-01T00:00:00+00:00", "既有資料被動到了"
+
+
+def test_部落總覽的庫存更新欄靠左而且不折行():
+    """「26 分鐘前」是文字不是數字。
+
+    一開始沿用了數字欄的 `num` class，結果整欄靠右，跟旁邊三欄不一致；
+    而且表格是 auto layout，長名字（「楓葉荻花秋瑟瑟@_@」）會把玩家欄撐開，
+    把這一欄擠到「26 分鐘 / 前」兩行。
+
+    `width: 1%` 配 `nowrap` 是縮到剛好容納內容的老招。**兩個窄欄都要加** ——
+    只加時間欄的話，被搶走寬度的換成「已收集」，表頭會斷成「已收／集」
+    （這正是第一版改完踩到的）。
+    """
+    js = (config.BASE_DIR / "web" / "app.js").read_text(encoding="utf-8")
+    css = _css_declarations((config.BASE_DIR / "web" / "style.css").read_text(encoding="utf-8"))
+
+    assert 'el("td", "when"' in js, "庫存更新的儲存格沒掛上 when class"
+
+    for sel in ("td.when", "th.when", "td.num", "th.num"):
+        assert sel in css, f"style.css 少了 {sel}"
+        assert "nowrap" in css[sel], f"{sel} 少了 nowrap，內容會被折行"
+        assert "width: 1%" in css[sel], f"{sel} 少了 width: 1%，欄寬會被長名字搶走"
+    assert "text-align: left" in css["td.when"], "時間被靠右了，跟其他欄不一致"
 
 
 @pytest.fixture

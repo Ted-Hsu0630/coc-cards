@@ -140,3 +140,7 @@ samples/             辨識測資
 卡面、活動主視覺與圖示取自《部落衝突》遊戲畫面，版權屬 Supercell。
 本專案為非商業的同人工具，依 [Supercell Fan Content Policy](https://supercell.com/en/fan-content-policy/)
 使用，與 Supercell 無關，也未經其背書。
+
+`web/img/cards/` 的 60 張頭像取自 [clash.ninja](https://www.clash.ninja/cards)
+的 `/images/entities/`，由 [tools/fetch_card_icons.py](tools/fetch_card_icons.py)
+一次抓下來自架 —— 不熱連他們的網址。對照表也在那支腳本裡。

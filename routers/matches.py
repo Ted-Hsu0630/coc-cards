@@ -89,26 +89,43 @@ def plan_trades(
         )
     if req.favor is not None and req.favor not in wanted:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "優先對象不在名單裡")
+    collections = players.all_collections(conn)
     steps = planning.plan(
-        players.all_collections(conn),
+        collections,
         wanted,
         max_steps=max(1, min(req.max_steps, MAX_PLAN_STEPS)),
         favor=req.favor,
     )
+    summary = planning.summarize(steps)
+
+    # 「換之前」要用**算這份計劃時的那份收藏**，不可以讓前端拿部落總覽那支的
+    # 數字去湊。那支是進畫面時抓的，中間有人存了新庫存的話，畫面上就會出現
+    # 「41/60 → 53/60」這種跟計劃對不起來的算式，而且完全看不出哪裡怪。
+    all_ids = [c.id for c in cards.all_cards()]
+
+    def owned(t: str) -> int:
+        counts = collections.get(t, {})
+        return sum(1 for c in all_ids if counts.get(c, 0) > 0)
+
+    # 前端只拿得到 tag，其餘都要從這裡帶過去
+    who = {}
+    for t in wanted:
+        before = owned(t)
+        who[t] = {
+            "name": everyone[t]["name"],
+            "clan_name": everyone[t]["clan_name"],
+            "collection_updated_at": everyone[t].get("collection_updated_at"),
+            "collected": before,
+            "after": before + summary["gained"].get(t, 0),
+            "total": len(all_ids),
+        }
+
     return {
         "tag": tag,
         "favor": req.favor,
         "steps": steps,
-        "summary": planning.summarize(steps),
-        # 前端只拿得到 tag，名字與庫存新舊度都要從這裡帶過去
-        "players": {
-            t: {
-                "name": everyone[t]["name"],
-                "clan_name": everyone[t]["clan_name"],
-                "collection_updated_at": everyone[t].get("collection_updated_at"),
-            }
-            for t in wanted
-        },
+        "summary": summary,
+        "players": who,
     }
 
 

@@ -497,6 +497,27 @@ code {
 .person .meta { margin-left: auto; padding-left: 8px; white-space: nowrap; }
 .person .meta.stale { color: var(--warn); }
 
+/* 一人一行的「換前 → 換後」。數字用 grid 對齊成三欄：擠在同一段文字裡的話，
+   名字長度不一，箭頭跟數字會各自為政，掃不出誰補得多。
+   名字欄 minmax(0, …) 是必要的：grid 項目的預設最小寬是內容寬，長名字會把
+   數字欄擠出卡片外。 */
+.gains {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: baseline; gap: 4px 8px; margin: 10px 0 0;
+  font-size: 14px;
+}
+/* 每一列**不能**自己是一個 grid —— 那樣每列各自算欄寬，名字欄吃掉的剩餘空間
+   隨數字寬度浮動，「41/60」跟「40/60」就會差幾個 px 對不齊（這個字型的 1
+   比 0 窄，tabular-nums 也救不了）。display: contents 讓五列共用同一組欄軌。 */
+.gain { display: contents; }
+.gain-who { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gain-num { color: var(--dim); text-align: right; }
+.gain-arrow { color: var(--dim); }
+/* 有補到才變色。沒補到的人一樣要列出來（被排進來卻什麼都沒拿到是資訊），
+   只是不該看起來像有收穫。 */
+.gain-num.up { color: var(--ok); font-weight: 600; }
+
 .step-head {
   display: flex; align-items: baseline; gap: 8px;
   margin-bottom: 10px; padding-bottom: 8px;

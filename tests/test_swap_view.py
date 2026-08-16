@@ -138,6 +138,30 @@ def test_那行字跟邊框同色(style_css):
     assert ".face.get img { border-color: var(--ok); }" in style_css
 
 
+def test_換前換後五個人要對齊成同一組欄位(app_js, style_css):
+    """摘要是一人一行的「41/60 → 51/60」，數字必須上下對齊才掃得出誰補得多。
+
+    每一列如果各自是一個 grid，欄寬就各算各的：名字欄是 1fr，吃掉的剩餘空間
+    隨數字寬度浮動，「41/60」跟「40/60」差幾個 px 就對不齊（這個字型的 1 比 0
+    窄，tabular-nums 也救不了）。display: contents 讓每一列的儲存格直接變成
+    外層 .gains 的項目，共用同一組欄軌。
+    """
+    assert ".gain { display: contents; }" in style_css
+    gains = style_css[style_css.index(".gains {"):]
+    gains = gains[: gains.index("}")]
+    assert "grid-template-columns: minmax(0, 1fr) auto auto auto" in gains, (
+        "欄軌要定在 .gains 上，定在每一列上就是各算各的"
+    )
+
+    src = app_js[app_js.index("function renderPlanResult("):]
+    src = src[: src.index("\n}\n")]
+    assert "共補齊 ${s.total_new} 張" in src
+    assert "`${p.collected}/${p.total}`" in src and "`${p.after}/${p.total}`" in src
+    # 一張都沒補到的人也要列 —— 走訪的是 players 不是 gained（gained 只有
+    # 真的補到的人才有鍵），從清單裡消失會被當成漏算
+    assert "Object.keys(data.players)" in src
+
+
 # ── 多人配對的勾選框 ───────────────────────────────────────────────
 
 

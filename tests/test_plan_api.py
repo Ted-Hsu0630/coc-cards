@@ -53,6 +53,50 @@ def test_算得出計劃而且結構完整(two_players):
     assert body["summary"]["trades"] >= 1
 
 
+def test_每個人的換前換後都算得出來(two_players):
+    """摘要要寫成「41/60 → 54/60」，所以換前、換後、總數都得從這裡帶。
+
+    換前**必須**是算這份計劃時用的那份收藏。讓前端拿部落總覽那支的數字去湊
+    的話，中間有人存了新庫存就會湊出跟計劃對不起來的算式，而且畫面上完全
+    看不出哪裡怪 —— 只是一個看起來很正常、卻不成立的加法。
+    """
+    r = two_players.post("/api/matches/plan", json={"tags": ["#AAA", "#BBB"]})
+    body = r.json()
+    total = len(cards.all_cards())
+
+    for tag, p in body["players"].items():
+        assert p["total"] == total
+        assert 0 <= p["collected"] <= p["after"] <= total
+        gained = body["summary"]["gained"].get(tag, 0)
+        assert p["after"] == p["collected"] + gained, f"{tag} 的換後對不上補到的張數"
+
+    # 這組資料只有 #BBB 補得到（他缺 E0；#AAA 收到的 E1 本來就有，不算補）
+    assert body["players"]["#BBB"]["collected"] == 1
+    assert body["players"]["#BBB"]["after"] == 2
+    # 一張都沒補到的人也要列出來，而且換前換後一樣 —— 從清單裡消失的話
+    # 會被當成漏算，畫面上正是要顯示他這一趟沒拿到東西
+    assert body["players"]["#AAA"]["collected"] == body["players"]["#AAA"]["after"] == 2
+
+
+def test_換前用的是算計劃的那份收藏(two_players):
+    """改完庫存之後重算，換前的數字要跟著動。
+
+    釘住「換前是現算的」而不是某個更早的快照 —— 這條壞掉的時候，畫面上的
+    算式會停在使用者上次進畫面的狀態。
+    """
+    before = two_players.post(
+        "/api/matches/plan", json={"tags": ["#AAA", "#BBB"]}
+    ).json()["players"]["#AAA"]["collected"]
+
+    _set_collection(two_players, "#AAA", {E[0]: 2, E[1]: 1, E[2]: 1})
+    assert two_players.post("/api/me/active", json={"tag": "#AAA"}).status_code == 200
+
+    after = two_players.post(
+        "/api/matches/plan", json={"tags": ["#AAA", "#BBB"]}
+    ).json()["players"]["#AAA"]["collected"]
+    assert after == before + 1
+
+
 def test_自己不會被自動加進去(two_players):
     """幫部落其他人排一份計劃是合理的用法。
 

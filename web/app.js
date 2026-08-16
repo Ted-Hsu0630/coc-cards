@@ -625,9 +625,28 @@ function renderPlanResult(data) {
 
   const head = el("div", "card");
   const s = data.summary;
-  head.append(el("h2", null, `${s.trades} 筆交換，補上 ${s.total_new} 張`));
-  const who = Object.entries(s.gained).sort((a, b) => b[1] - a[1]);
-  head.append(el("p", "hint", who.map(([t, n]) => `${nameOf(t)} +${n}`).join("　·　")));
+  head.append(el("h2", null, `${s.trades} 筆交換，共補齊 ${s.total_new} 張`));
+
+  // 一人一行的「換前 → 換後」。原本是擠成一段的「名字 +13　·　名字 +13」，
+  // 換行位置隨名字長度亂跑，而且 +13 是相對值 —— 看不出他本來就快滿了還是
+  // 才剛開始。列出 41/60 → 54/60 才知道這份計劃對他的意義。
+  const rows = el("div", "gains");
+  const who = Object.keys(data.players).sort(
+    (a, b) => (s.gained[b] || 0) - (s.gained[a] || 0),
+  );
+  for (const t of who) {
+    const p = data.players[t];
+    const row = el("div", "gain");
+    row.append(el("span", "gain-who", nameOf(t)));
+    row.append(el("span", "gain-num", `${p.collected}/${p.total}`));
+    row.append(el("span", "gain-arrow", "→"));
+    // 一張都沒補到的人也要列。他被排進來卻什麼都沒拿到，這件事本身就是資訊，
+    // 從清單裡消失的話會被當成漏算。
+    const after = el("span", "gain-num" + (s.gained[t] ? " up" : ""), `${p.after}/${p.total}`);
+    row.append(after);
+    rows.append(row);
+  }
+  head.append(rows);
   // 兩件事使用者必須知道，不可以讓畫面看起來比實際更有把握
   head.append(el("p", "hint",
     "這是搜尋出來的好方案，不保證是理論上的最優解。" +

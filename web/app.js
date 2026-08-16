@@ -578,7 +578,7 @@ function renderPlanFavor() {
   const sel = $("#planFavor");
   const keep = sel.value;
   sel.textContent = "";
-  const none = el("option", null, "不指定（全體新增最多）");
+  const none = el("option", null, "不指定（全體一起換）");
   none.value = "";
   sel.append(none);
   for (const p of plan.people) {

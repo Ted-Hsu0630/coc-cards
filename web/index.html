@@ -122,12 +122,12 @@
           <span class="alt-label" id="planCount"></span>
         </div>
         <div id="planPeople" class="people"></div>
-        <label>優先照顧
+        <label>集中補齊
           <select id="planFavor"></select>
         </label>
-        <!-- 這句不可以省。指定之後全體張數可能會掉，而畫面上只寫「優先照顧」
-             的話，使用者會以為那是免費的偏袒。 -->
-        <p class="hint">指定之後以他補到最多為目標，必要時會犧牲其他人的張數。</p>
+        <!-- 這句不可以省。指定之後清單會只剩他的交換，其他人一張都不會補到，
+             不寫的話那看起來像算錯了。 -->
+        <p class="hint">指定之後只列出補齊他的交換，其他人之間不互換。</p>
         <button type="button" class="primary" id="planRun">開始配對</button>
         <p class="error" id="planError" hidden></p>
       </div>

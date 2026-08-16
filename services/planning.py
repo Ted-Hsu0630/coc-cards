@@ -63,17 +63,23 @@ CBC 執行檔，跟 opencv 同量級）、多三種失敗模式（求解器逾�
 **什麼時候該回頭看 ILP**：部落長到 50 人以上，或是要加「讓每個人至少湊滿
 一個系列」這類限制 —— 那種條件寫成不等式很自然，寫成貪婪規則會變成一堆特例。
 
-**四、「優先照顧」的天花板是他自己的重複卡，不是演算法。** 每換一次他一定要
-送出一張多餘的卡，而收到重複卡雖然會讓某張變成 2 張，那一手同時也送掉一張 ——
-淨值是 0。所以他在某系列能補到的張數硬上限是
-`min(他的多餘張數, 他缺的當中別人拿得出來的種類數)`，再怎麼犧牲別人都推不動。
+**四、「集中補齊某人」的天花板是他自己的重複卡，不是演算法。** 每換一次他一定
+要送出一張多餘的卡，而收到重複卡雖然會讓某張變成 2 張，那一手同時也送掉一張
+—— 淨值是 0。所以他在某系列能補到的張數硬上限是
+`min(他的多餘張數, 他缺的當中別人拿得出來的種類數)`，誰都推不動。
 
-正式機 12 人那組，指定每一個人都**剛好打到這個上限**（18/18、9/9、2/2、0/0…），
-而且全體張數一次都沒掉，還是 107。所以「指定他會不會害到大家」在資料寬鬆時
-根本不是問題；有人指定了也沒變多，是因為他的上限本來就那麼低。
+正式機 12 人那組，指定每一個人都**剛好打到這個上限**（18/18、9/9、2/2、0/0…）。
+有人指定了也沒變多，是因為他的上限本來就那麼低，不是被排擠。
 
-376 個隨機案例裡有 2.4% 是挑選那一層漏掉的（見 plan() 裡把他排最前面那段），
-補上之後他多拿 +1，代價是 3 個案例全體少 1~2 張。
+因為天花板動不了，指定某人時就整批砍掉「其他人之間」的交換（見 `_for_favor`）。
+258 個案例（6/8/12/17 人各指定每一個人）：
+
+    做法                    他補到    總筆數    全體補到
+    全部人照常互換             2533    18921      28808
+    只留他有參與的             2535     5038       7013
+    只留他發起的（現在）         2535     2535       4507
+
+他一張都沒少（總數還多 2 張），清單卻短到七分之一。
 
 **三、寬鬆上界沒有參考價值。** 算過一個忽略配對限制的上界，本模組只達到
 它的 84~89%，看起來還有很多空間 —— 但 ILP 證明真正的最優就在旁邊（差 1%）。
@@ -84,10 +90,6 @@ import random
 from dataclasses import dataclass
 
 from core import cards
-
-# 「優先某人」時，讓他補到空缺的交換一律排在其他交換前面。
-# 一筆交換最多讓兩個人各補一格，所以總分上限是 2 —— 權重取 10 就足以壓過。
-FAVOR_WEIGHT = 10
 
 # 實測第 2 步就飽和（2 步到 10 步一張都沒多），3 步只是留一點餘裕。
 MAX_STEPS_DEFAULT = 3
@@ -165,12 +167,12 @@ def plan(
             1 + (1 if tr["receiver_new"] else 0) for batch in steps for tr in batch
         )
         key = (gained, -len(steps), -sum(len(b) for b in steps))
-        # 指定優先照顧時，**他補到幾張排在全體之前**。
+        # 指定補齊某人時，**他補到幾張排在全體之前**。
         #
-        # FAVOR_WEIGHT 只影響一步之內的挑選順序，管不到「二十份候選計劃挑哪一份」
-        # 這一層 —— 少了這行，同分時挑的是對全體好的那份，他反而拿得比較少。
+        # 候選那邊已經只留他發起的交換（見 _for_favor），但那管不到
+        # 「二十份候選計劃挑哪一份」這一層 —— 少了這行，同分時挑的是總分高的
+        # 那份，而總分還含接收方順便補到的張數，他自己反而可能拿得比較少。
         # 實測過：某組資料二十個種子裡他最多能拿 11 張，選出來的那份只給他 10。
-        # 這個選項的意思本來就是「必要時犧牲別人成全他」，所以放在最前面。
         if favor is not None:
             key = (_gain_of(steps, favor), *key)
         if best_key is None or key > best_key:
@@ -246,10 +248,14 @@ def _candidates(have, tags, ids_by_series, favor):
     合法性看的是**這一步開始時**的狀態，不是挑選過程中的狀態 —— 挑選時的
     遞減由 `_still_valid` 再確認一次。分開的理由是：候選只算一次就好，
     每挑一筆就全部重算的話，17 個人要跑好幾秒。
+
+    指定 `favor` 時只留下「他當發起方」的交換，見下面 _for_favor 的說明。
     """
     out: list[tuple[int, Trade]] = []
     for i, a in enumerate(tags):
         for b in tags[i + 1 :]:
+            if favor is not None and favor not in (a, b):
+                continue           # 其他人之間互換，一張都幫不到他
             ha, hb = have.get(a, {}), have.get(b, {})
             for series, ids in ids_by_series.items():
                 spare_a = [c for c in ids if ha.get(c, 0) >= 2]
@@ -264,24 +270,44 @@ def _candidates(have, tags, ids_by_series, favor):
                         b_new = hb.get(x, 0) == 0
                         # 發起方必須完全沒有他要收的那張（紅線 2）。
                         # 所以「誰能發起」是被規則決定的，不是我們挑的。
-                        if a_new:
-                            out.append(_score_trade(a, b, x, y, series, b_new, favor))
-                        if b_new:
-                            out.append(_score_trade(b, a, y, x, series, a_new, favor))
+                        if a_new and _for_favor(a, favor):
+                            out.append(_score_trade(a, b, x, y, series, b_new))
+                        if b_new and _for_favor(b, favor):
+                            out.append(_score_trade(b, a, y, x, series, a_new))
     return out
 
 
-def _score_trade(initiator, receiver, gives, gets, series, receiver_new, favor):
+def _for_favor(initiator, favor):
+    """指定補齊某人時，只有他發起的交換算數。
+
+    為什麼可以整批砍掉別人的交換，而不是「排在他後面」：
+
+    - **其他人之間互換幫不到他。** 他能補到的張數，硬上限是每個系列
+      `min(他的多餘張數, 他缺的當中別人拿得出來的種類數)`。別人互換推不動
+      左邊（他的多餘卡只有他自己送得出去），也推不動右邊 —— 要讓某人手上
+      有 2 張 C，得有人先給他一張 C，而給的人本來就得有 2 張，供應者的
+      人數不會憑空多出來，而他一張 C 就夠了。
+    - **別人互換反而會吃掉他要的貨源。** 某人只有 2 張 C 時把 C 送出去，
+      就從「C 的供應者」變成不是了。
+
+    實測 258 個案例（6/8/12/17 人各指定每一個人）：砍掉之後他補到的張數
+    0 次變少，總數還多 2 張；交換筆數從 18,921 掉到 2,535。
+
+    只留「他發起」而不是「他有參與」：他當接收方的那些是**他去補別人**，
+    對他零成本但也零幫助（送出一張、收回一張自己已有的，多餘卡總數不變），
+    列進來只是把清單灌長。要一併照顧別人的話就不要指定人。
+    """
+    return favor is None or initiator == favor
+
+
+def _score_trade(initiator, receiver, gives, gets, series, receiver_new):
     tr = Trade(
         initiator=initiator, receiver=receiver, gives=gives, gets=gets,
         series=series, initiator_new=True, receiver_new=receiver_new,
     )
-    score = 1 + (1 if receiver_new else 0)
-    # 只有「補到空缺」才算照顧到他 —— 收下一張重複卡不算。
-    # 發起方一定是補到空缺的那一方（他只能指定自己沒有的卡）。
-    if favor is not None and (initiator == favor or (receiver == favor and receiver_new)):
-        score += FAVOR_WEIGHT
-    return score, tr
+    # 接收方也補到空缺的話這一筆值兩張。指定補齊某人時候選全是他發起的，
+    # 這個分數就退化成「同樣幫他一張，優先挑順便也幫到對方的那筆」。
+    return 1 + (1 if receiver_new else 0), tr
 
 
 def _still_valid(tr, avail, incoming, have, series_of):

@@ -310,9 +310,9 @@ def _gain(steps, tag):
 def test_指定優先對象時多跑幾次只會讓他拿更多(seed):
     """種子是 0..n-1，所以 restarts=20 一定含 restarts=1 那一次。
 
-    這條釘的是**挑選那一層有沒有把他放在前面**。FAVOR_WEIGHT 只管一步之內的
-    排序，管不到「二十份候選計劃挑哪一份」—— 少了那層，同分時挑的是對全體
-    最好的那份，多跑幾次反而讓他拿得比較少，而畫面上寫的是「優先照顧」。
+    這條釘的是**挑選那一層有沒有把他放在前面**。候選那邊只留他發起的交換，
+    但管不到「二十份候選計劃挑哪一份」—— 少了那層，同分時挑的是總分高的那份，
+    而總分含接收方順便補到的，多跑幾次反而讓他自己拿得比較少。
     """
     coll = _fixed_collections(6, seed)
     tags = list(coll)
@@ -320,6 +320,41 @@ def test_指定優先對象時多跑幾次只會讓他拿更多(seed):
         few = planning.plan(coll, tags, favor=t, restarts=1)
         many = planning.plan(coll, tags, favor=t)
         assert _gain(many, t) >= _gain(few, t), f"多跑幾次之後 {t} 反而拿得更少"
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_指定補齊某人時清單裡每一筆都是他發起的(seed):
+    """其他帳號之間不互相換卡。
+
+    理由不是「先照顧他」而是「別人互換幫不到他」：他能補到的張數上限是
+    `min(他的多餘張數, 他缺的當中別人拿得出來的種類數)`，別人之間換卡兩邊
+    都推不動，反而會把只剩 2 張的供應者換成 1 張、供不出來。
+
+    他當接收方的那些也不留 —— 那是他去補別人，對他零成本也零幫助。
+    """
+    coll = _fixed_collections(8, seed)
+    tags = list(coll)
+    steps = planning.plan(coll, tags, favor=tags[1])
+    replay(coll, steps)
+    for batch in steps:
+        for tr in batch:
+            assert tr["initiator"] == tags[1], (
+                f"清單裡出現了 {tr['initiator']} 發起的交換，他不是被指定的人"
+            )
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_不換其他人不會讓他拿得比較少(seed):
+    """「非必要不互換」的那個「非必要」要有憑據。
+
+    實測 258 個案例 0 次變差，這裡用同一個生成器守住不會回頭。
+    """
+    coll = _fixed_collections(8, seed)
+    tags = list(coll)
+    for t in tags:
+        focused = _gain(planning.plan(coll, tags, favor=t), t)
+        # 不指定的時候大家照常互換，他能拿到的不該比專門補他還多
+        assert focused >= _gain(planning.plan(coll, tags), t)
 
 
 def test_必要時會犧牲全體成全優先對象():

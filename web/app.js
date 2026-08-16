@@ -50,6 +50,12 @@ function lastUpdated(iso) {
   return `${Math.floor(hours / 24)} 天前`;
 }
 
+// 「6 小時前更新」。部落總覽有欄位標題說明那是什麼時間，多人配對的名單沒有，
+// 所以文字要自己交代。時間不明時不能直接接字尾 —— 會變成「未知更新」。
+function updatedLabel(iso) {
+  return minutesSince(iso) === null ? "未知" : `${lastUpdated(iso)}更新`;
+}
+
 // 多久算舊。沒有精算過，是「一週沒動就該打折看待」。
 const STALE_MINUTES = 7 * 24 * 60;
 
@@ -535,7 +541,16 @@ function renderPlanPeople() {
     });
     const label = `${p.name}${me ? "（你）" : ""}　${p.collected}/${p.total}`;
     row.append(cb, el("span", null, label));
-    if (!p.has_data) row.append(el("span", "alt-label", "未建表"));
+
+    // 庫存有多舊，跟部落總覽同一套說法。計劃是拿這些人存下來的資料算的，
+    // 挑人的當下就看得到才有意義 —— 要跳去部落總覽才查得到就等於沒有。
+    const meta = el(
+      "span",
+      "alt-label meta",
+      p.has_data ? updatedLabel(p.collection_updated_at) : "未建表",
+    );
+    if (p.has_data && isStale(p.collection_updated_at)) meta.classList.add("stale");
+    row.append(meta);
     box.append(row);
   }
   if (!list.length) {

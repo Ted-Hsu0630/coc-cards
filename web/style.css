@@ -480,6 +480,11 @@ code {
 /* 沒建表的人參與不了任何交換，勾了也不會出現在計劃裡 —— 先讓他看起來就不像
    一個有用的選項，比事後解釋「為什麼他沒出現」好 */
 .person.nodata { color: var(--dim); }
+/* 名字長度不一，靠 margin-left: auto 推到右邊才會對齊成一欄。
+   nowrap：「6 小時前更新」被折成兩行會把整列撐高，一整排看起來就亂了。
+   .stale 要寫在這裡 —— 它在檔案前面，被後面的 .alt-label 蓋掉了。 */
+.person .meta { margin-left: auto; padding-left: 8px; white-space: nowrap; }
+.person .meta.stale { color: var(--warn); }
 
 .step-head {
   display: flex; align-items: baseline; gap: 8px;

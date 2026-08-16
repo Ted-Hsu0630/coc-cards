@@ -173,3 +173,23 @@ def test_全選是勾選框而且會跟著人名同步(app_js):
     handler = handler[: handler.index("\n});")]
     assert 'addEventListener("change"' in handler, "要聽 change 才有得取消"
     assert "plan.picked.clear()" in handler, "取消勾選時沒有清空"
+
+
+def test_挑人的時候看得到庫存多舊(app_js, style_css):
+    """計劃是拿這些人存下來的資料算的，挑人的當下就要看得到有多舊。
+
+    要跳去部落總覽才查得到就等於沒有 —— 那時候人已經挑完了。
+    """
+    src = app_js[app_js.index("function renderPlanPeople("):]
+    src = src[: src.index("\n}\n")]
+    assert "updatedLabel(p.collection_updated_at)" in src
+    assert "isStale(p.collection_updated_at)" in src, "久沒更新的沒有標出來"
+
+    # 時間不明時不可以直接接字尾，會變成「未知更新」
+    lbl = app_js[app_js.index("function updatedLabel("):]
+    lbl = lbl[: lbl.index("\n}")]
+    assert "minutesSince(iso) === null" in lbl, "沒有處理時間不明的情況"
+
+    # .stale 在檔案前面，被後面的 .alt-label 蓋掉 —— 要重寫一次才有作用
+    assert ".person .meta.stale { color: var(--warn); }" in style_css
+    assert style_css.index(".person .meta.stale") > style_css.index(".alt-label {")

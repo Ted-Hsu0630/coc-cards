@@ -433,13 +433,27 @@ code {
   cursor: pointer;
   transition: color 150ms ease-in-out, border-color 150ms ease-in-out;
 }
+/* ✔ 用邊框畫，不要用 U+2714 那個字元。iOS 上它會 fallback 到另一套字型，
+   筆畫細到幾乎看不見 —— 同一份 CSS 在桌機是粗實的勾、在手機淡到看不出有沒有勾。
+   自己畫的話粗細是我們說了算，每個瀏覽器長得都一樣。
+   （旋轉後的勾視覺重心偏下，translateY 往上推 1px 才像置中。） */
 .person input[type="checkbox"]::after {
-  content: "\2714";
-  font-size: 15px; line-height: 1;
+  content: "";
+  width: 7px; height: 12px;
+  border: 2px solid currentColor;
+  border-top: 0; border-left: 0; border-radius: 1px;
+  transform: translateY(-1px) rotate(45deg);
   opacity: 0;
   transition: opacity 150ms ease-in-out;
 }
-.person input[type="checkbox"]:checked { --box: var(--accent); }
+/* 勾起來的框線加粗、再墊一層很淡的底色。手機螢幕上只靠 1px 的框變色，
+   一整排掃過去分不出哪幾個勾了。 */
+.person input[type="checkbox"]:checked {
+  --box: var(--accent);
+  border-width: 2px;
+  background: rgba(240, 180, 41, .14);                      /* --accent 的 14% */
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
 .person input[type="checkbox"]:checked::after { opacity: 1; }
 .person input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 滑過時用半透明的 ✔ 預示按下去會變成什麼樣子。包在 hover 查詢裡：手機上

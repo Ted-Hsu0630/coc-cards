@@ -8,7 +8,11 @@
 
 2. 送出／收到只靠邊框顏色分，而顏色代表什麼畫面上哪裡都沒寫。記反了整份清單
    會整個讀反：把自己缺的卡當成要送出去的。
+
+底下還有一條守多人配對的勾選框：那個 ✔ 不可以用字元畫。
 """
+
+import re
 
 import pytest
 
@@ -132,3 +136,23 @@ def test_那行字跟邊框同色(style_css):
     assert ".face.get .face-role { color: var(--ok); }" in style_css
     assert ".face.give img { border-color: var(--warn); }" in style_css
     assert ".face.get img { border-color: var(--ok); }" in style_css
+
+
+# ── 多人配對的勾選框 ───────────────────────────────────────────────
+
+
+def test_勾勾不可以用字元畫(style_css):
+    """U+2714 在 iOS 上會 fallback 到另一套字型，筆畫細到幾乎看不見。
+
+    這種壞法在桌機上完全看不出來 —— 同一份 CSS，桌機是粗實的勾、手機淡到
+    分不出哪幾列勾了。用邊框畫的話粗細是我們說了算，各家瀏覽器一致。
+    """
+    # 只看 content:，註解裡寫 ✔ 說明是可以的
+    for decl in re.findall(r"content:\s*([^;]+);", style_css):
+        assert "✔" not in decl and "2714" not in decl, f"又用回字元畫勾了：{decl}"
+
+    start = style_css.index('.person input[type="checkbox"]::after')
+    block = style_css[start : style_css.index("}", start)]
+    assert 'content: "";' in block
+    assert "border: 2px solid currentColor" in block
+    assert "rotate(45deg)" in block

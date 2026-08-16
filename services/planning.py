@@ -37,6 +37,12 @@
 而且還得有人缺那張又拿得出東西換。條件一多就幾乎不會有第三層。
 所以 MAX_STEPS_DEFAULT 維持 3（2 就夠，留一點餘裕）。
 
+順帶回答一個一定會有人問的問題：**畫面上只有第一步不是壞掉。** 拿正式機的
+資料重跑 500 次，12 人那組有 440 次跑出兩步、32 次三步，但**分數全部都是
+107**，一張都沒多換。多步方案找得到，只是不值得推薦 —— 所以同分時挑步數
+少的（見 plan() 裡那個 key）。5 人那組更乾脆，500 次裡 492 次就是一步。
+真正的瓶頸不是步數：第一步跑完之後，剩下的空格是**整團沒有人有 2 張**的卡。
+
 **二、整數規劃（ILP）跑得動，但不值得。** 用 pulp + CBC 把單步建成
 0/1 規劃（送出張數上限、補到空缺才計分），實測**每一步都能證明最優**：
 
@@ -138,12 +144,15 @@ def plan(
     best_key = None
     for seed in range(max(1, restarts)):
         steps = _plan_once(base, tags, ids_by_series, series_of, favor, seed, max_steps)
-        # 補到的張數最多為主；同樣多的話挑筆數少、步數少的 —— 同樣的收穫
-        # 沒理由讓人多跑幾趟
+        # 補到的張數最多為主；同樣多的話**先挑步數少的**，再挑筆數少的。
+        # 步數擺在筆數前面是有代價考量的：多一步等於全團要等第一步全部做完
+        # 才能開始第二步，而多一筆只是多發一則訊息。實測過一組正式資料，
+        # 62 筆兩步 vs 63 筆一步、換到的卡一模一樣 —— 為了省一則訊息
+        # 讓十二個人多等一輪，划不來。
         gained = sum(
             1 + (1 if tr["receiver_new"] else 0) for batch in steps for tr in batch
         )
-        key = (gained, -sum(len(b) for b in steps), -len(steps))
+        key = (gained, -len(steps), -sum(len(b) for b in steps))
         if best_key is None or key > best_key:
             best, best_key = steps, key
     return best or []

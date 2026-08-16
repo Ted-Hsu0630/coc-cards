@@ -190,6 +190,36 @@ def test_多重跑幾次不會比只跑一次差(seed):
     assert many >= one
 
 
+def _score(steps):
+    """plan() 內部拿來比較的分數。
+
+    刻意在這裡重寫一次而不是從 planning 匯入：這條測試要問的是「多一步值不值得」，
+    值不值得的尺是**收穫**。把尺跟被測的程式綁在一起的話，改了計分方式兩邊會
+    一起變，測試就永遠成立。
+    """
+    return sum(1 + (1 if tr["receiver_new"] else 0) for batch in steps for tr in batch)
+
+
+@pytest.mark.parametrize("n,seed", [(5, 3), (8, 2), (8, 4), (12, 1), (17, 0)])
+def test_多出來的步驟必須真的多換到東西(n, seed):
+    """步數擺在筆數前面：同樣的收穫就不該叫人分兩步。
+
+    多一步的代價是**全團要等第一步全部做完**才能開始第二步；多一筆只是多發
+    一則訊息。實測過一組正式資料：62 筆兩步跟 63 筆一步換到的卡一模一樣 ——
+    為了省一則訊息讓十二個人多等一輪，划不來。
+
+    這條不綁任何特定的計劃長相，只問「第 k+1 步有沒有換到第 k 步換不到的」。
+    """
+    coll = _fixed_collections(n, seed)
+    tags = list(coll)
+    full = planning.plan(coll, tags, max_steps=3)
+    for k in range(1, len(full)):
+        fewer = planning.plan(coll, tags, max_steps=k)
+        assert _score(full) > _score(fewer), (
+            f"{len(full)} 步跟 {k} 步換到的一樣多，卻還是叫人多等 {len(full) - k} 輪"
+        )
+
+
 def test_搜尋品質不可以退回舊版():
     """釘住兩組實測過的資料。
 

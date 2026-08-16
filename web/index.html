@@ -112,9 +112,13 @@
           <span class="slider"></span>
           <span>只顯示同部落</span>
         </label>
+        <!-- 一顆就夠：全選了再點一下就是全部清掉，跟購物車的「全選」一樣。
+             兩顆按鈕要先看清楚哪顆是哪顆，而它們互相排斥的關係也沒表現出來。 -->
         <div class="people-head">
-          <button type="button" class="ghost" id="planAll">全選</button>
-          <button type="button" class="ghost" id="planNone">全不選</button>
+          <label class="check all">
+            <input type="checkbox" id="planAll">
+            <span>全選</span>
+          </label>
           <span class="alt-label" id="planCount"></span>
         </div>
         <div id="planPeople" class="people"></div>

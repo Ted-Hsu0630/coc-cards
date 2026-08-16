@@ -151,8 +151,25 @@ def test_勾勾不可以用字元畫(style_css):
     for decl in re.findall(r"content:\s*([^;]+);", style_css):
         assert "✔" not in decl and "2714" not in decl, f"又用回字元畫勾了：{decl}"
 
-    start = style_css.index('.person input[type="checkbox"]::after')
+    start = style_css.index('.check input[type="checkbox"]::after')
     block = style_css[start : style_css.index("}", start)]
     assert 'content: "";' in block
     assert "border: 2px solid currentColor" in block
     assert "rotate(45deg)" in block
+
+
+def test_全選是勾選框而且會跟著人名同步(app_js):
+    """一顆勾選框：全選了再點一下就全部清掉（購物車那樣）。
+
+    關鍵是**同步**：手動取消其中一個之後，「全選」要跟著彈回未勾。沒同步的話
+    它還顯示已勾，使用者以為再點一下是「補齊剩下的」，實際上是把全部清空。
+    """
+    src = app_js[app_js.index("function renderPlanPeople("):]
+    src = src[: src.index("\n}\n")]
+    assert "all.checked = list.length > 0 && list.every(" in src, "沒有跟著人名同步"
+    assert "all.disabled = !list.length" in src, "名單空的時候全選要關掉"
+
+    handler = app_js[app_js.index('$("#planAll").addEventListener'):]
+    handler = handler[: handler.index("\n});")]
+    assert 'addEventListener("change"' in handler, "要聽 change 才有得取消"
+    assert "plan.picked.clear()" in handler, "取消勾選時沒有清空"

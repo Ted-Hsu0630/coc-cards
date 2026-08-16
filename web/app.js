@@ -510,12 +510,11 @@ $("#planSameClan").addEventListener("change", () => {
   for (const t of [...plan.picked]) if (!seen.has(t)) plan.picked.delete(t);
   renderPlanPeople();
 });
-$("#planAll").addEventListener("click", () => {
-  for (const p of visiblePeople()) plan.picked.add(p.tag);
-  renderPlanPeople();
-});
-$("#planNone").addEventListener("click", () => {
+// 勾起來就全選，再點一下（取消勾選）就全部清掉。picked 只裝得下看得見的人，
+// 所以清空不會偷偷留下被篩選藏起來的那幾個。
+$("#planAll").addEventListener("change", () => {
   plan.picked.clear();
+  if ($("#planAll").checked) for (const p of visiblePeople()) plan.picked.add(p.tag);
   renderPlanPeople();
 });
 
@@ -525,7 +524,7 @@ function renderPlanPeople() {
   const list = visiblePeople();
   for (const p of list) {
     const me = p.tag === state.me.active_tag;
-    const row = el("label", "person" + (p.has_data ? "" : " nodata"));
+    const row = el("label", "check person" + (p.has_data ? "" : " nodata"));
     const cb = el("input");
     cb.type = "checkbox";
     cb.checked = plan.picked.has(p.tag);
@@ -542,6 +541,12 @@ function renderPlanPeople() {
   if (!list.length) {
     box.append(el("p", "hint", "同部落沒有其他人建表，取消上面的篩選看看別的部落。"));
   }
+
+  // 全部勾滿了「全選」才算勾起來 —— 手動取消其中一個，它要跟著彈回未勾，
+  // 不然再點一下會變成「清空」而不是使用者以為的「補齊」。
+  const all = $("#planAll");
+  all.checked = list.length > 0 && list.every((p) => plan.picked.has(p.tag));
+  all.disabled = !list.length;
 
   $("#planCount").textContent = `已選 ${plan.picked.size} 人`;
   // 一個人湊不成交換。與其讓伺服器回錯誤，不如讓按鈕自己說明還缺什麼

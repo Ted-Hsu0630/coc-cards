@@ -409,21 +409,30 @@ code {
   border-color: var(--accent); font-weight: 600;
 }
 
-.people-head { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
-.people-head button { padding: 5px 10px; font-size: 13px; }
+/* 「全選」跟人名長得一樣（本來就該一樣），所以要有一條線說明它管的是底下那些，
+   不然它讀起來就只是名單裡的第一列。 */
+.people-head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 12px 0 4px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
 .people-head .alt-label { margin-left: auto; }
 .people { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+
 /* 自己畫勾選框。原生的在深色介面上是瀏覽器自己的淺色方塊，跟旁邊的字完全
-   不同調，而且各家長得都不一樣。--box 由外層的狀態改寫，框線與 ✔ 一起跟著變色。
+   不同調，而且各家長得都不一樣。--box 由外層的狀態改寫，框線與勾一起跟著變色。
    底稿的粉紅／藍在這個配色裡太跳（深色介面上突然冒出高彩度色塊），
-   換成本站既有的 --dim / --text / --accent。 */
-.person {
+   換成本站既有的 --dim / --text / --accent。
+
+   .check 是共用的外觀，人名那列（.person）跟「全選」（.all）都用它 ——
+   「全選」跟它管的那些勾長得一樣，才看得出是同一件事。 */
+.check {
   --box: var(--dim);
   display: flex; align-items: center; gap: 10px; margin: 0;
   padding: 6px 2px; font-size: 14px; color: var(--text);
   cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.person input[type="checkbox"] {
+.check input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
   flex: 0 0 auto;
   width: 1.5rem; height: 1.5rem; margin: 0; padding: 0;
@@ -433,11 +442,11 @@ code {
   cursor: pointer;
   transition: color 150ms ease-in-out, border-color 150ms ease-in-out;
 }
-/* ✔ 用邊框畫，不要用 U+2714 那個字元。iOS 上它會 fallback 到另一套字型，
+/* 勾用邊框畫，不要用 U+2714 那個字元。iOS 上它會 fallback 到另一套字型，
    筆畫細到幾乎看不見 —— 同一份 CSS 在桌機是粗實的勾、在手機淡到看不出有沒有勾。
    自己畫的話粗細是我們說了算，每個瀏覽器長得都一樣。
    （旋轉後的勾視覺重心偏下，translateY 往上推 1px 才像置中。） */
-.person input[type="checkbox"]::after {
+.check input[type="checkbox"]::after {
   content: "";
   width: 7px; height: 12px;
   border: 2px solid currentColor;
@@ -448,21 +457,25 @@ code {
 }
 /* 勾起來的框線加粗、再墊一層很淡的底色。手機螢幕上只靠 1px 的框變色，
    一整排掃過去分不出哪幾個勾了。 */
-.person input[type="checkbox"]:checked {
+.check input[type="checkbox"]:checked {
   --box: var(--accent);
   border-width: 2px;
   background: rgba(240, 180, 41, .14);                      /* --accent 的 14% */
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.person input[type="checkbox"]:checked::after { opacity: 1; }
-.person input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* 滑過時用半透明的 ✔ 預示按下去會變成什麼樣子。包在 hover 查詢裡：手機上
+.check input[type="checkbox"]:checked::after { opacity: 1; }
+.check input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 名單空的時候「全選」沒有東西可選，關掉並讓它看起來就不能點 */
+.check input[type="checkbox"]:disabled { cursor: default; }
+.check:has(input:disabled) { opacity: .45; cursor: default; }
+/* 滑過時用半透明的勾預示按下去會變成什麼樣子。包在 hover 查詢裡：手機上
    hover 點完會黏著不放，已勾的那列會一直停在「正要取消」的樣子。 */
 @media (hover: hover) {
-  .person:hover { --box: var(--text); }
-  .person:hover input[type="checkbox"]:not(:checked)::after { opacity: .45; }
+  .check:hover { --box: var(--text); }
+  .check:hover input[type="checkbox"]:not(:checked)::after { opacity: .45; }
   /* 已勾的滑過去不要變色：它現在的意思是「再點一下取消」，不是預覽 */
-  .person:hover input[type="checkbox"]:checked { --box: var(--accent); }
+  .check:hover input[type="checkbox"]:checked { --box: var(--accent); }
+  .check:has(input:disabled):hover { --box: var(--dim); }
 }
 /* 沒建表的人參與不了任何交換，勾了也不會出現在計劃裡 —— 先讓他看起來就不像
    一個有用的選項，比事後解釋「為什麼他沒出現」好 */

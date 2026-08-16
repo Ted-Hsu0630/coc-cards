@@ -396,24 +396,48 @@ function renderSwap(s) {
 
   for (let i = 0; i < s.trades; i++) {
     const row = el("div", "pairing");
-    row.append(cardFace(s.i_give[i], "give"));
+    row.append(cardFace(s.i_give[i], "give", "你送出"));
     row.append(el("span", "arrow", "⇄"));
-    row.append(cardFace(s.i_get[i], "get"));
+    row.append(cardFace(s.i_get[i], "get", "你收到"));
     box.append(row);
   }
 
-  // 單向交換時清單是按張數展開的（同一張多份會重複），備選要去重才不會洗版
-  const restGive = [...new Set(s.i_give.slice(s.trades))];
-  const restGet = [...new Set(s.i_get.slice(s.trades))];
+  const restGive = alternatives(s.i_give, s.trades);
+  const restGet = alternatives(s.i_get, s.trades);
   if (restGive.length) box.append(altRow("可改送", restGive, "give"));
   if (restGet.length) box.append(altRow("可改收", restGet, "get"));
   return box;
 }
 
+/* 配對用剩的才是備選。
+   清單是按「張數」展開的（熔岩獵犬有 4 張就出現 3 次），所以光去重不夠 ——
+   配對吃掉前面兩份之後，剩下的那份還是熔岩獵犬，會被印成「可改送：熔岩獵犬」，
+   但上面兩列已經在送它了，而且可換次數就是 2 次，那第三份根本換不掉。
+   扣掉已經配對的卡才是真正還有得選的。 */
+function alternatives(list, trades) {
+  const used = new Set(list.slice(0, trades));
+  return [...new Set(list.slice(trades))].filter((id) => !used.has(id));
+}
+
+// 超過這個張數就收起來。「我受益」的對價可以是任何一張多的卡，實際看過列到
+// 9 張的 —— 排滿兩排卡面看起來很重要，其實隨便挑一張都行，資訊量很低。
+const ALT_SHOWN = 4;
+
 function altRow(label, ids, cls) {
   const wrap = el("div", "alt");
   wrap.append(el("span", "alt-label", label + "："));
-  for (const id of ids) wrap.append(cardFace(id, `${cls} faded`));
+  for (const id of ids.slice(0, ALT_SHOWN)) wrap.append(cardFace(id, `${cls} faded`));
+
+  const rest = ids.slice(ALT_SHOWN);
+  if (!rest.length) return wrap;
+  // 收起來但留得住：直接砍掉會讓人以為只有這幾張能選，而挑哪一張是他的決定
+  const more = el("button", "ghost alt-more", `還有 ${rest.length} 張可選`);
+  more.type = "button";
+  more.addEventListener("click", () => {
+    for (const id of rest) wrap.insertBefore(cardFace(id, `${cls} faded`), more);
+    more.remove();
+  });
+  wrap.append(more);
   return wrap;
 }
 
@@ -421,9 +445,13 @@ function altRow(label, ids, cls) {
 
    跟收藏頁用同一組圖（瀏覽器也已經快取過了），但這裡是唯讀的展示不是按鈕 ——
    純文字的卡名要讀完才知道是哪張，看圖是一眼的事，而使用者在遊戲裡本來就是
-   照圖認卡。名字仍然留在圖下面：兩個系列的同名卡（飛龍寶寶）光看圖分不出來。 */
-function cardFace(id, cls) {
+   照圖認卡。名字仍然留在圖下面：兩個系列的同名卡（飛龍寶寶）光看圖分不出來。
+
+   role 是圖上面那行「送出 / 收到」。方向本來只靠邊框顏色分，而顏色代表什麼
+   畫面上哪裡都沒寫 —— 記反了整份清單會整個讀反，實際發生過。 */
+function cardFace(id, cls, role = null) {
   const box = el("div", `face ${cls}`);
+  if (role) box.append(el("span", "face-role", role));
   const img = el("img");
   img.src = `/static/img/cards/${id}.png`;
   img.alt = "";
@@ -618,7 +646,12 @@ function renderTradeGroup(g, nameOf) {
 
   for (const tr of g.trades) {
     const row = el("div", "trade");
-    row.append(cardFace(tr.gives, "give"), el("span", "arrow", "⇄"), cardFace(tr.gets, "get"));
+    // 這裡的方向是**發起方**的（上面那行剛講完誰發起），所以不寫「你」
+    row.append(
+      cardFace(tr.gives, "give", "送出"),
+      el("span", "arrow", "⇄"),
+      cardFace(tr.gets, "get", "收到"),
+    );
     if (!tr.receiver_new) row.append(el("span", "alt-label", "對方收到的是重複卡"));
     box.append(row);
   }

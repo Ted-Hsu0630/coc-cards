@@ -392,6 +392,13 @@ code {
 .face.give img { border-color: var(--warn); }
 .face.get img { border-color: var(--ok); }
 .face.faded { opacity: .55; }
+/* 跟邊框同色，順便當成底下 faded 那幾排的圖例 —— 那幾排沒有這行字，
+   但顏色一樣，看過上面就知道橘的是送出去的。 */
+.face-role { font-size: 10px; line-height: 1.2; margin-bottom: 3px; white-space: nowrap; }
+.face.give .face-role { color: var(--warn); }
+.face.get .face-role { color: var(--ok); }
+
+.alt-more { padding: 4px 9px; font-size: 12px; align-self: center; }
 
 /* --- 多人配對 --- */
 

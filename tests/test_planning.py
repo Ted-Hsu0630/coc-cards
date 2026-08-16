@@ -296,6 +296,46 @@ def test_優先對象的交換會排在最前面():
     assert any(tr["initiator"] == "#A" or tr["receiver"] == "#A" for tr in steps[0])
 
 
+def _gain(steps, tag):
+    """某個人補到幾張。跟 summarize() 同一套，只是這裡只要一個人的數字。"""
+    return sum(
+        1
+        for batch in steps
+        for tr in batch
+        if tr["initiator"] == tag or (tr["receiver"] == tag and tr["receiver_new"])
+    )
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_指定優先對象時多跑幾次只會讓他拿更多(seed):
+    """種子是 0..n-1，所以 restarts=20 一定含 restarts=1 那一次。
+
+    這條釘的是**挑選那一層有沒有把他放在前面**。FAVOR_WEIGHT 只管一步之內的
+    排序，管不到「二十份候選計劃挑哪一份」—— 少了那層，同分時挑的是對全體
+    最好的那份，多跑幾次反而讓他拿得比較少，而畫面上寫的是「優先照顧」。
+    """
+    coll = _fixed_collections(6, seed)
+    tags = list(coll)
+    for t in tags:
+        few = planning.plan(coll, tags, favor=t, restarts=1)
+        many = planning.plan(coll, tags, favor=t)
+        assert _gain(many, t) >= _gain(few, t), f"多跑幾次之後 {t} 反而拿得更少"
+
+
+def test_必要時會犧牲全體成全優先對象():
+    """這個選項的意思是「補齊他」，不是「在不影響大家的前提下照顧他」。
+
+    這組資料是實測挑出來的：以全體為主的挑法給 #P2 十四張，把他放到最前面
+    之後是十五張。差一張，但差的那張正是這個選項存在的理由。
+    """
+    coll = _fixed_collections(6, 5)
+    tags = list(coll)
+    plain = planning.plan(coll, tags)
+    favored = planning.plan(coll, tags, favor="#P2")
+    assert _gain(favored, "#P2") == 15
+    assert _gain(plain, "#P2") < 15
+
+
 def test_優先對象也一樣要守規則():
     """加權只影響排序，不可以放寬紅線。"""
     coll = _random_collections(6, 9)

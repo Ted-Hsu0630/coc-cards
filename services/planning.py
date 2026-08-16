@@ -63,6 +63,18 @@ CBC 執行檔，跟 opencv 同量級）、多三種失敗模式（求解器逾�
 **什麼時候該回頭看 ILP**：部落長到 50 人以上，或是要加「讓每個人至少湊滿
 一個系列」這類限制 —— 那種條件寫成不等式很自然，寫成貪婪規則會變成一堆特例。
 
+**四、「優先照顧」的天花板是他自己的重複卡，不是演算法。** 每換一次他一定要
+送出一張多餘的卡，而收到重複卡雖然會讓某張變成 2 張，那一手同時也送掉一張 ——
+淨值是 0。所以他在某系列能補到的張數硬上限是
+`min(他的多餘張數, 他缺的當中別人拿得出來的種類數)`，再怎麼犧牲別人都推不動。
+
+正式機 12 人那組，指定每一個人都**剛好打到這個上限**（18/18、9/9、2/2、0/0…），
+而且全體張數一次都沒掉，還是 107。所以「指定他會不會害到大家」在資料寬鬆時
+根本不是問題；有人指定了也沒變多，是因為他的上限本來就那麼低。
+
+376 個隨機案例裡有 2.4% 是挑選那一層漏掉的（見 plan() 裡把他排最前面那段），
+補上之後他多拿 +1，代價是 3 個案例全體少 1~2 張。
+
 **三、寬鬆上界沒有參考價值。** 算過一個忽略配對限制的上界，本模組只達到
 它的 84~89%，看起來還有很多空間 —— 但 ILP 證明真正的最優就在旁邊（差 1%）。
 那個差距全是上界自己太鬆，不要拿它當改進的目標。
@@ -153,6 +165,14 @@ def plan(
             1 + (1 if tr["receiver_new"] else 0) for batch in steps for tr in batch
         )
         key = (gained, -len(steps), -sum(len(b) for b in steps))
+        # 指定優先照顧時，**他補到幾張排在全體之前**。
+        #
+        # FAVOR_WEIGHT 只影響一步之內的挑選順序，管不到「二十份候選計劃挑哪一份」
+        # 這一層 —— 少了這行，同分時挑的是對全體好的那份，他反而拿得比較少。
+        # 實測過：某組資料二十個種子裡他最多能拿 11 張，選出來的那份只給他 10。
+        # 這個選項的意思本來就是「必要時犧牲別人成全他」，所以放在最前面。
+        if favor is not None:
+            key = (_gain_of(steps, favor), *key)
         if best_key is None or key > best_key:
             best, best_key = steps, key
     return best or []
@@ -277,6 +297,21 @@ def _still_valid(tr, avail, incoming, have, series_of):
     if have[tr.initiator].get(tr.gets, 0) != 0:
         return False
     return series_of[tr.gives] == series_of[tr.gets]
+
+
+def _gain_of(steps: list[list[dict]], tag: str) -> int:
+    """某個人在這份計劃裡補到幾張空缺。
+
+    發起方一定是補到空缺的（他只能指定自己完全沒有的卡）；接收方要看
+    receiver_new —— 收到的是重複卡就不算補。跟 summarize() 同一套算法，
+    這裡不呼叫它是因為每個種子都要算一次，只需要一個人的數字。
+    """
+    return sum(
+        1
+        for batch in steps
+        for tr in batch
+        if tr["initiator"] == tag or (tr["receiver"] == tag and tr["receiver_new"])
+    )
 
 
 def summarize(steps: list[list[dict]]) -> dict:

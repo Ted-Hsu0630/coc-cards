@@ -338,12 +338,23 @@ code {
 }
 .slot .name.unconfirmed::after { content: " ?"; color: var(--warn); }
 
+/* 名字的 2.5em 是預留兩行、讓同一列的格子等高用的。但名字只有一行時底下會
+   空出約 12px，「原有 3 張」就飄在那段空白下方 —— 離下一列的卡片（列距 6px）
+   比離自己的名字還近，讀起來像在講下面那張卡。
+
+   有註記時名字改成實際高度，註記就貼著名字；等高改由列距負責（見下面的
+   #importNeeds / #importRead）。收藏頁沒有註記，維持原本的固定高度。 */
+.slot.noted .name { height: auto; min-height: 1.25em; }
+
 .tile-note {
   font-size: 9px; line-height: 1.3; text-align: center;
   color: var(--dim); margin-top: 2px;
 }
 .tile-note.warn { color: var(--warn); }
 .tile-note.bad { color: var(--bad); }
+/* 註記貼著名字之後，列與列之間就得自己拉開 —— 6px 的話註記離下一列的卡片
+   還是太近。只有匯入確認這兩處有註記，收藏頁不受影響。 */
+#importNeeds .grid, #importRead .grid { row-gap: 18px; }
 
 /* 匯入確認裡「為什麼要你確認」的小標題。原因寫在這裡，格子底下就不必
    每一格都重複一次。 */

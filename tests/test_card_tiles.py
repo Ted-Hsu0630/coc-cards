@@ -208,6 +208,29 @@ def test_boot_可以被呼叫第二次(app_js):
     assert app_js.count('$("#booting")?.remove()') == 2
 
 
+def test_註記貼著名字而不是飄在兩列中間(app_js):
+    """「原有 3 張」必須看得出是在講上面那張卡。
+
+    名字的 2.5em 是預留兩行、讓同一列等高用的；名字只有一行時底下空出約 12px，
+    註記就飄在那段空白下方 —— 離下一列的卡片（列距 6px）比離自己的名字還近，
+    讀起來像在講下面那張。有註記時名字改成實際高度，等高改由列距負責。
+
+    收藏頁沒有註記，不可以被波及（那裡靠固定高度讓每一列的格子一樣高）。
+    """
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert ".slot.noted .name { height: auto;" in css
+    assert ".slot .name {" in css and "height: 2.5em" in css, "收藏頁的固定高度不見了"
+    assert "#importNeeds .grid, #importRead .grid { row-gap: 18px; }" in css
+
+    # class 是 JS 加的：只有真的有註記時才加，收藏頁才不會跟著變。
+    # 這裡不能用 block() —— cardTile 的參數本身就是一組解構的大括號，
+    # 它會從那裡開始數，切出來的是參數列不是函式主體。
+    tile = app_js[app_js.index("function cardTile("):]
+    tile = tile[: tile.index("\n}\n")]
+    assert 'slot.classList.add("noted")' in tile
+    assert tile.index("if (note) {") < tile.index('slot.classList.add("noted")')
+
+
 def test_重選檔案會清掉上一次的辨識結果(app_js):
     """畫面上的結果必須是「現在選著的那些檔案」辨識出來的。
 

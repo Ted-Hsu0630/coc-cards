@@ -166,7 +166,12 @@ function cardTile(card, { value, allowUnset = false, note = null, noteClass = ""
   if (!card.confirmed) name.title = "名稱尚未與遊戲畫面核對";
 
   slot.append(tile, dec, name);
-  if (note) slot.append(el("div", `tile-note ${noteClass}`, note));
+  // noted 讓 CSS 知道底下還有一行字。名字的固定高度只在沒有註記時才成立，
+  // 理由寫在 style.css 的 .slot.noted .name。
+  if (note) {
+    slot.classList.add("noted");
+    slot.append(el("div", `tile-note ${noteClass}`, note));
+  }
 
   let v = value;
   const paint = () => {

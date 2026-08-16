@@ -1042,7 +1042,22 @@ function redrawImport() {
   updateImportHint();
 }
 
+/* 把畫面上的辨識結果收掉。
+
+   規則只有一條：**畫面上顯示的結果，必須是「現在選著的那些檔案」辨識出來的。**
+   一旦不成立就要收掉，因為結果底下那顆「儲存」是照樣按得下去的 ——
+   使用者以為存的是剛選的截圖，實際上寫進去的是上一張的卡表。
+   （實際踩過：選錯人的截圖，重選之後畫面還停在前一份。） */
+function resetImport() {
+  $("#importResult").hidden = true;
+  $("#importError").hidden = true;
+  imp.rows = [];
+  imp.picks = {};
+  state.importSeries = null;
+}
+
 $("#importFiles").addEventListener("change", (e) => {
+  resetImport();          // 換了檔案，舊結果就對不上了
   $("#importBtn").disabled = e.target.files.length === 0;
 });
 
@@ -1053,7 +1068,9 @@ $("#importForm").addEventListener("submit", async (e) => {
 
   const btn = $("#importBtn");
   const err = $("#importError");
-  err.hidden = true;
+  // 送出的當下舊結果就作廢了。失敗時尤其重要：這批檔案根本沒有結果，
+  // 畫面卻還留著上一批的，錯誤訊息又在表單那頭，捲下去看不到。
+  resetImport();
   btn.disabled = true;
   btn.textContent = "辨識中…";
   try {
@@ -1076,11 +1093,9 @@ $("#importForm").addEventListener("submit", async (e) => {
 });
 
 $("#importCancel").addEventListener("click", () => {
-  $("#importResult").hidden = true;
+  resetImport();
   $("#importFiles").value = "";
   $("#importBtn").disabled = true;
-  imp.rows = [];
-  imp.picks = {};
 });
 
 $("#importApply").addEventListener("click", async () => {

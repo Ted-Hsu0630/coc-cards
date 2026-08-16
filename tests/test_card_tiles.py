@@ -208,6 +208,28 @@ def test_boot_可以被呼叫第二次(app_js):
     assert app_js.count('$("#booting")?.remove()') == 2
 
 
+def test_重選檔案會清掉上一次的辨識結果(app_js):
+    """畫面上的結果必須是「現在選著的那些檔案」辨識出來的。
+
+    對不上還留著的話，結果底下那顆「儲存」照樣按得下去 —— 使用者以為存的是
+    剛選的截圖，實際寫進去的是上一張的卡表。紅線 10 要求辨識結果經過確認才
+    寫入，而「確認」的前提是他確認的真的是他正在看的那一份。
+
+    submit 那邊也要清：失敗時這批檔案根本沒有結果，畫面卻還留著上一批的，
+    而錯誤訊息在表單那頭，捲下去看結果的人看不到。
+    """
+    reset = block(app_js, "function resetImport")
+    assert '$("#importResult").hidden = true' in reset
+    assert "imp.rows = []" in reset
+    assert "imp.picks = {}" in reset
+
+    change = block(app_js, '$("#importFiles").addEventListener("change"')
+    assert "resetImport()" in change, "換檔案沒有清掉舊結果"
+
+    submit = block(app_js, '$("#importForm").addEventListener("submit"')
+    assert "resetImport()" in submit, "送出失敗時舊結果會留在畫面上"
+
+
 def test_取消會回到伺服器上那一份(app_js):
     """存過之後 state.saved 沒跟著更新的話，按取消會退回**上上次**的資料，
     而且畫面不會有任何錯誤 —— 使用者只會發現剛存的東西不見了。

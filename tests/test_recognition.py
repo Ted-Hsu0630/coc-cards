@@ -253,6 +253,12 @@ from services import progress as P  # noqa: E402
 BARS = GT["_bars"]
 
 
+def _total(key):
+    from core import cards as C
+
+    return C.series_meta()[key]["count"]
+
+
 @pytest.mark.parametrize("name", ALBUM)
 def test_進度條讀出來的數字跟人工抄的一致(name):
     img = _img(name)
@@ -260,11 +266,53 @@ def test_進度條讀出來的數字跟人工抄的一致(name):
     want = BARS[GT[name]["player"]]
     for key, pair in want.items():
         if pair is None:
-            # 該系列已收集完，進度條變成「領取」按鈕 —— 讀不出來才是對的
-            assert key not in got, f"{key} 應該讀不出值，卻讀成 {got[key]}"
+            # 該系列已收齊，進度條整條變成「領取」按鈕，畫面上一個數字都沒有。
+            # 但按鈕本身就是答案 —— 它只在收齊時出現，所以要回報滿值。
+            n = _total(key)
+            assert got.get(key) == (n, n), f"{key} 已收齊卻回報 {got.get(key)}"
         else:
             assert key in got, f"{key} 讀不出來（正解 {pair[0]}/{pair[1]}）"
             assert list(got[key]) == pair, f"{key} 讀成 {got[key]}，正解 {tuple(pair)}"
+
+
+# 收齊之後的兩種樣子。玩家 D 只涵蓋到「還沒領獎」那種，領完獎的樣子
+# （數字回來了，右邊多一個綠勾）在他的截圖裡一張都沒有。
+CLAIMED = GT["_claimed"]
+
+
+@pytest.mark.parametrize("name", sorted(CLAIMED))
+def test_收齊的系列不管領獎了沒都算得出來(name):
+    got = P.read_progress(_img(name))
+    for key, pair in CLAIMED[name].items():
+        n = _total(key)
+        want = (n, n) if pair is None else tuple(pair)
+        assert got.get(key) == want, f"{name} 的 {key} 回報 {got.get(key)}，應該是 {want}"
+
+
+def test_領獎前後讀出來的進度一樣():
+    """同一位玩家、相隔 24 分鐘，中間只按了「領取」。
+
+    領獎不會改變收藏，所以四個系列的數字必須完全一致 —— 這條抓的是
+    「按鈕那條路徑算出來的滿值跟真的讀出來的數字對不上」。
+    """
+    before = P.read_progress(_img("IMG_5024"))
+    after = P.read_progress(_img("IMG_5029"))
+    assert before == after, f"領獎前 {before}、領獎後 {after}"
+
+
+def test_綠色勾勾不會被當成領取按鈕():
+    """領完獎的進度條右邊有一個綠勾，跟按鈕同色。
+
+    量最大連通塊而不是綠色總量才分得開：按鈕佔外框 25%，勾只佔 2.1%。
+    混淆的後果是靜默的 —— 14/19 會被回報成 19/19，檢查碼從此永遠說「相符」。
+    """
+    btn = _img("IMG_5024")
+    assert P.claimable(btn, P.find_bars(btn)["elixir"]), "「領取」按鈕沒被認出來"
+
+    img = _img("IMG_5029")
+    box = P.find_bars(img)["elixir"]
+    assert not P.claimable(img, box), "領完獎的綠勾被當成「領取」按鈕了"
+    assert P.read_bar(img, box, P.load_templates()) == (19, 19)
 
 
 def test_非相簿畫面讀不出進度條():
@@ -282,6 +330,24 @@ def test_辨識結果與進度條一致():
     compared = [g for g in groups if g["owned"] is not None and g["expected"] is not None]
     assert len(compared) == 4, "四個系列都該有可比對的數字"
     for g in compared:
+        assert g["owned"] == g["expected"], f"{g['name']} 讀到 {g['owned']}，畫面上是 {g['expected']}"
+
+
+def test_收齊的系列一樣核對得到():
+    """玩家 D 的聖水與闇黑都收齊了，那兩條進度條是「領取」按鈕。
+
+    修好之前這兩個系列的 expected 是 None，畫面上會寫「進度條讀取失敗，
+    無法自動核對」—— 偏偏那是他收藏最完整、也最值得核對的兩個系列。
+    """
+    res = importer.analyze([
+        (f"{n}.jpg", _path(n).read_bytes())
+        for n in ["IMG_4943", "IMG_4944", "IMG_4945", "IMG_4946", "IMG_4947"]
+    ])
+    by_key = {g["key"]: g for g in res["summary"]["series_owned"]}
+    assert (by_key["elixir"]["owned"], by_key["elixir"]["expected"]) == (19, 19)
+    assert (by_key["dark"]["owned"], by_key["dark"]["expected"]) == (13, 13)
+    for g in by_key.values():
+        assert g["expected"] is not None, f"{g['name']} 沒有可比對的數字"
         assert g["owned"] == g["expected"], f"{g['name']} 讀到 {g['owned']}，畫面上是 {g['expected']}"
 
 

@@ -92,7 +92,7 @@ def main():
             continue
         for key in ("elixir", "dark", "builder", "super"):
             if key not in bars:
-                print(f"  {key:8s} —（可能已收集完，進度條變成「領取」按鈕）")
+                print(f"  {key:8s} —（已收集完，進度條變成「領取」按鈕）")
                 continue
             x, y, w, h = bars[key]
             g = bar_glyphs(img, bars[key])

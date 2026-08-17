@@ -196,6 +196,39 @@ def test_輸出含發起方與部落資訊():
     assert m["name"] == "阿明"
 
 
+def test_每筆配對都算得出雙方的換前換後():
+    """畫面上要印「你 41/60 → 48/60」，所以兩邊的起點都得從這裡帶過去。
+
+    「換之前」必須跟配對結果用**同一份**收藏。前端另外去部落總覽那支撈的話，
+    中間有人存了新庫存就會印出跟配對對不起來的算式，而且完全看不出哪裡怪。
+    """
+    from core import cards
+
+    total = len(cards.all_cards())
+    # 我有 E1（多）缺 E2；對方有 E2（多）缺 E1 —— 互利，各補一張
+    cols = {"#ME": {E1: 2}, "#A": {E2: 2, E1: 0}}
+    m = matching.find_matches("#ME", cols, PLAYERS)[0]
+
+    assert m["me"] == {"collected": 1, "after": 2, "total": total}
+    assert m["them"] == {"collected": 1, "after": 2, "total": total}
+    # 補幾張與換後的張數是同一件事的兩種說法，不可以各算各的
+    assert m["me"]["after"] - m["me"]["collected"] == m["gain"]
+    assert m["them"]["after"] - m["them"]["collected"] == m["help"]
+
+
+def test_我幫忙的配對裡我自己一張都沒多():
+    """單向「我幫忙」時我收下的是自己已經有的卡 —— 換前換後必須一樣。
+
+    這是最容易寫錯的一格：直接拿 trades 當兩邊的增量就會印成「你 41→45」，
+    而實際上你一張都沒補到。
+    """
+    cols = {"#ME": {E1: 2, E2: 2}, "#A": {E1: 0, E2: 3}}
+    m = matching.find_matches("#ME", cols, PLAYERS)[0]
+    assert m["kind"] == OUTGOING
+    assert m["me"]["after"] == m["me"]["collected"], "我幫忙卻算成我也有補"
+    assert m["them"]["after"] > m["them"]["collected"]
+
+
 def test_沒有部落的人不會被誤判為同部落():
     players = dict(PLAYERS)
     players["#ME"] = {"name": "我", "clan_tag": None, "clan_name": None}

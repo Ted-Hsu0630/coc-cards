@@ -328,6 +328,25 @@ async function loadCollection() {
 
 /* ---------- 配對 ---------- */
 
+/* 一人一行的「換前 → 換後」，雙人與多人配對共用。
+
+   共用的重點不只是省幾行：欄軌定在外層 .gains 上（每一列是 display: contents），
+   兩個畫面用同一個函式就保證是同一組欄寬，數字不會一邊對齊一邊不對齊。
+   每筆要有 name / collected / after / total —— 後端兩支 API 刻意回同一個形狀。*/
+function gainRows(people) {
+  const rows = el("div", "gains");
+  for (const p of people) {
+    const row = el("div", "gain");
+    row.append(el("span", "gain-who", p.name));
+    row.append(el("span", "gain-num", `${p.collected}/${p.total}`));
+    row.append(el("span", "gain-arrow", "→"));
+    row.append(el("span", "gain-num" + (p.after > p.collected ? " up" : ""),
+                 `${p.after}/${p.total}`));
+    rows.append(row);
+  }
+  return rows;
+}
+
 $("#sameClanOnly").addEventListener("change", loadMatches);
 
 async function loadMatches() {
@@ -380,12 +399,13 @@ function renderMatch(m) {
 
   const sub = el("p", "hint");
   sub.textContent =
-    `${m.clan_name || "無部落"}　${INITIATOR_LABEL[m.initiator]}　` +
-    `最多換 ${m.trades} 次` +
-    (m.gain ? `（補你 ${m.gain} 張` : "（") +
-    (m.help ? `${m.gain ? "、" : ""}補對方 ${m.help} 張` : "") +
-    "）";
+    `${m.clan_name || "無部落"}　${INITIATOR_LABEL[m.initiator]}　最多換 ${m.trades} 次`;
   card.append(sub);
+
+  // 換前換後，跟多人配對同一個排版。原本是「補你 7 張、補對方 4 張」，
+  // 那是相對值 —— 看不出對方是本來就快滿了還是才剛開始，而那正是決定
+  // 要不要花這幾次交換在他身上的關鍵。
+  card.append(gainRows([{ name: "你", ...m.me }, { name: m.name, ...m.them }]));
 
   card.append(el("p", isStale(m.collection_updated_at) ? "hint stale" : "hint",
     `庫存更新：${lastUpdated(m.collection_updated_at)}`));
@@ -627,26 +647,12 @@ function renderPlanResult(data) {
   const s = data.summary;
   head.append(el("h2", null, `${s.trades} 筆交換，共補齊 ${s.total_new} 張`));
 
-  // 一人一行的「換前 → 換後」。原本是擠成一段的「名字 +13　·　名字 +13」，
-  // 換行位置隨名字長度亂跑，而且 +13 是相對值 —— 看不出他本來就快滿了還是
-  // 才剛開始。列出 41/60 → 54/60 才知道這份計劃對他的意義。
-  const rows = el("div", "gains");
+  // 一人一行的「換前 → 換後」。走訪的是 players 不是 gained —— 一張都沒補到
+  // 的人也要列，他被排進來卻什麼都沒拿到本身就是資訊，從清單裡消失會被當成漏算。
   const who = Object.keys(data.players).sort(
     (a, b) => (s.gained[b] || 0) - (s.gained[a] || 0),
   );
-  for (const t of who) {
-    const p = data.players[t];
-    const row = el("div", "gain");
-    row.append(el("span", "gain-who", nameOf(t)));
-    row.append(el("span", "gain-num", `${p.collected}/${p.total}`));
-    row.append(el("span", "gain-arrow", "→"));
-    // 一張都沒補到的人也要列。他被排進來卻什麼都沒拿到，這件事本身就是資訊，
-    // 從清單裡消失的話會被當成漏算。
-    const after = el("span", "gain-num" + (s.gained[t] ? " up" : ""), `${p.after}/${p.total}`);
-    row.append(after);
-    rows.append(row);
-  }
-  head.append(rows);
+  head.append(gainRows(who.map((t) => ({ ...data.players[t], name: nameOf(t) }))));
   // 兩件事使用者必須知道，不可以讓畫面看起來比實際更有把握
   head.append(el("p", "hint",
     "這是搜尋出來的好方案，不保證是理論上的最優解。" +

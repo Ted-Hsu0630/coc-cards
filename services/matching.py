@@ -55,8 +55,11 @@ class Match:
     same_clan: bool
     kind: str
     series: list[SeriesMatch]
-    gain: int   # 這個對象總共能幫我補幾張
-    help: int   # 我總共能幫對方補幾張
+    gain: int        # 這個對象總共能幫我補幾張
+    help: int        # 我總共能幫對方補幾張
+    my_owned: int    # 換之前我有幾張
+    their_owned: int  # 換之前對方有幾張
+    total: int
 
     def as_dict(self) -> dict:
         return {
@@ -71,6 +74,20 @@ class Match:
             "gain": self.gain,
             "help": self.help,
             "trades": sum(s.trades for s in self.series),
+            # 換前換後兩邊各一份。gain / help 是相對值，看不出對方是本來就
+            # 快滿了還是才剛開始 —— 而那正是決定要不要找他換的關鍵。
+            # 形狀刻意跟 /api/matches/plan 的 players[tag] 一致，前端共用同一
+            # 個排版函式。
+            "me": {
+                "collected": self.my_owned,
+                "after": self.my_owned + self.gain,
+                "total": self.total,
+            },
+            "them": {
+                "collected": self.their_owned,
+                "after": self.their_owned + self.help,
+                "total": self.total,
+            },
             "series": [s.as_dict() for s in self.series],
         }
 
@@ -214,6 +231,16 @@ def find_matches(
     my_clan = (players.get(viewer_tag) or {}).get("clan_tag")
     ids_by_series = _ids_by_series()
 
+    # 「換之前」跟配對結果要用**同一份**收藏。前端另外去部落總覽那支撈數字的話，
+    # 中間有人存了新庫存就會印出跟配對對不起來的算式，而且完全看不出哪裡怪。
+    all_ids = [c for ids in ids_by_series.values() for c in ids]
+    total = len(all_ids)
+
+    def owned(counts: dict[str, int]) -> int:
+        return sum(1 for c in all_ids if counts.get(c, 0) > 0)
+
+    my_owned = owned(mine)
+
     out: list[Match] = []
     for tag, info in players.items():
         if tag == viewer_tag:
@@ -222,7 +249,8 @@ def find_matches(
         if same_clan_only and not same_clan:
             continue
 
-        res = match_one(mine, collections.get(tag, {}), ids_by_series)
+        theirs = collections.get(tag, {})
+        res = match_one(mine, theirs, ids_by_series)
         if res is None:
             continue
         kind, series, gain, helped = res
@@ -238,6 +266,9 @@ def find_matches(
                 series=series,
                 gain=gain,
                 help=helped,
+                my_owned=my_owned,
+                their_owned=owned(theirs),
+                total=total,
             )
         )
 

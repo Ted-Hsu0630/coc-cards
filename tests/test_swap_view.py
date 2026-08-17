@@ -153,13 +153,37 @@ def test_換前換後五個人要對齊成同一組欄位(app_js, style_css):
         "欄軌要定在 .gains 上，定在每一列上就是各算各的"
     )
 
-    src = app_js[app_js.index("function renderPlanResult("):]
+    src = app_js[app_js.index("function gainRows("):]
     src = src[: src.index("\n}\n")]
-    assert "共補齊 ${s.total_new} 張" in src
     assert "`${p.collected}/${p.total}`" in src and "`${p.after}/${p.total}`" in src
+
+    plan = app_js[app_js.index("function renderPlanResult("):]
+    plan = plan[: plan.index("\n}\n")]
+    assert "共補齊 ${s.total_new} 張" in plan
     # 一張都沒補到的人也要列 —— 走訪的是 players 不是 gained（gained 只有
     # 真的補到的人才有鍵），從清單裡消失會被當成漏算
-    assert "Object.keys(data.players)" in src
+    assert "Object.keys(data.players)" in plan
+
+
+def test_雙人配對也用同一個換前換後(app_js):
+    """雙人本來只寫「補你 7 張、補對方 4 張」。
+
+    那是相對值：補 4 張的對象可能是 38/60，也可能是 56/60，而那兩件事對
+    「要不要花這幾次交換在他身上」的意義完全相反。換成跟多人配對同一組
+    「41/60 → 48/60」才看得出來。
+
+    共用 gainRows 不只是省行數 —— 欄軌定在外層 .gains 上，同一個函式才保證
+    兩個畫面是同一組欄寬。
+    """
+    src = app_js[app_js.index("function renderMatch("):]
+    src = src[: src.index("\n}\n")]
+    assert "gainRows(" in src, "雙人配對沒有用共用的換前換後"
+    assert '{ name: "你", ...m.me }' in src and "...m.them" in src
+    assert "最多換 ${m.trades} 次" in src, "換幾次還是要講"
+
+    # 註解裡寫「原本是補你 N 張」是可以的，只看真的會跑到的那幾行
+    code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
+    assert "補你" not in code and "補對方" not in code, "舊的相對值又回來了"
 
 
 # ── 多人配對的勾選框 ───────────────────────────────────────────────

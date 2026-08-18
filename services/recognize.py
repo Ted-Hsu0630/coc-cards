@@ -232,6 +232,40 @@ def _raw_boxes(img, k=None):
     return [cv2.boundingRect(c) for c in contours]
 
 
+# 相鄰兩列之間的縫隙，以卡片高度為單位。實測 29 張真截圖共 31 個縫隙，
+# 全部落在 0.15~0.22；遊戲頂端 HUD 湊出來的假列離相簿第一列有 1.65 —— 差 7.5 倍。
+ROW_GAP_MAX = 0.5
+
+
+def _album_rows(rows, h_full):
+    """丟掉不在相簿列格線上的列。回傳卡片最多的那一段。
+
+    `on_lattice` 只看寬度與欄位、刻意不看高度（被畫面切到的列本來就矮），
+    所以畫面上任何寬度湊巧又落在欄位上的東西都會被收進來。實測有張截圖
+    在 y=115 從遊戲頂端的 HUD 湊出一個 47px 高的框（真卡片高 278），
+    被當成「上緣被切的第一列」，整張圖就多出一列、顏色吻合度掉到 13/18，
+    使用者看到的是「認不出這是相簿的哪一段」。
+
+    列間距是可靠的判準，而且**不受切邊影響**：上緣被切的列，下緣仍是真的；
+    下緣被切的列，上緣仍是真的。所以量到的永遠是卡片之間的真實縫隙。
+    這是 _fit_columns 對欄做的事的縱向版本。
+    """
+    runs = [[rows[0]]]
+    for prev, row in zip(rows, rows[1:], strict=False):
+        top, _ = _row_bounds(row)
+        prev_top, prev_h = _row_bounds(prev)
+        if top - (prev_top + prev_h) > h_full * ROW_GAP_MAX:
+            runs.append([row])
+        else:
+            runs[-1].append(row)
+    # 先比框數再比列數：假列通常只湊得出一兩個框，其餘欄位是下面補出來的
+    return max(runs, key=lambda run: (sum(len(r) for r in run), len(run)))
+
+
+def _row_bounds(row):
+    return float(np.median([b[1] for b in row])), float(np.median([b[3] for b in row]))
+
+
 def grid(img):
     """回傳閱讀順序的 (bbox, clip)，clip 是 ""／"top"／"bottom"。
 
@@ -273,6 +307,7 @@ def grid(img):
             rows[-1].append(b)
         else:
             rows.append([b])
+    rows = _album_rows(rows, h_full)
 
     out = []
     for r, row in enumerate(rows):

@@ -92,6 +92,52 @@ def test_真相簿會被接受且視窗位置正確(name):
     assert r.start == GT[name]["start"]
 
 
+def test_遊戲畫面上的東西不會被當成多出來的一列():
+    """IMG_5037：遊戲頂端的 HUD 在 y=115 湊出一個 47px 高的框（真卡片高 278）。
+
+    它的寬度與欄位剛好都對得上，而 grid() 的第二遍**刻意不看高度**
+    （被畫面切到的列本來就矮），所以它被當成「上緣被切的第一列」——
+    整張圖變成 3 列 18 格，顏色吻合度掉到 13/18 而被整張拒絕。
+
+    使用者看到的是「認不出這是相簿的哪一段」，可是畫面明明拍得好好的：
+    這種壞法完全沒有線索可循，只能靠這條測試守。
+    """
+    boxes = R.grid(_img("IMG_5037"))
+    assert len(boxes) == 12, f"切出 {len(boxes) / 6:.0f} 列，這張只有 2 列"
+
+    r = R.recognize(_img("IMG_5037"))
+    assert r.ok, f"被誤拒：{r.reason}"
+    assert r.exact and r.start == GT["IMG_5037"]["start"]
+
+
+def test_列間距的分離間隙夠寬():
+    """釘住「用列間距分辨真假列」這個決定，而不只是釘住結論。
+
+    列間距不受切邊影響，這正是它可靠的原因：上緣被切的列，下緣仍是真的；
+    下緣被切的列，上緣仍是真的 —— 量到的永遠是卡片之間的真實縫隙。
+
+    實測所有真截圖的列間距都在 0.22 個卡高以內，而 IMG_5037 那個假列離
+    相簿第一列有 1.65 個卡高。門檻 0.5 放在中間，兩邊都有三倍以上的餘裕。
+    """
+    worst, worst_name = 0.0, ""
+    for name in ALBUM:
+        boxes = R.grid(_img(name))
+        rows = [boxes[i:i + R.COLS] for i in range(0, len(boxes), R.COLS)]
+        h_full = max(b[3] for b, _ in boxes)
+        for a, b in zip(rows, rows[1:], strict=False):
+            top_a = min(box[1] for box, _ in a)
+            bottom_a = max(box[1] + box[3] for box, _ in a)
+            gap = min(box[1] for box, _ in b) - bottom_a
+            assert gap > 0, f"{name} 的兩列重疊了（{top_a}）"
+            if gap / h_full > worst:
+                worst, worst_name = gap / h_full, name
+
+    assert worst < R.ROW_GAP_MAX / 2, (
+        f"真相簿最寬的列間距是 {worst:.2f}（{worst_name}），離門檻 "
+        f"{R.ROW_GAP_MAX} 太近了"
+    )
+
+
 # --- 3. 讀不出來要拒答，不可以猜 ---------------------------------------------
 
 
